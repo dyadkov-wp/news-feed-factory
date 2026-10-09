@@ -9,10 +9,6 @@ declare( strict_types=1 );
 
 namespace NWFF\Install;
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
-
 /**
  * Creates and updates the custom feed meta table.
  *

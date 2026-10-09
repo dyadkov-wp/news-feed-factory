@@ -9,10 +9,6 @@ declare( strict_types=1 );
 
 namespace NWFF\Cache;
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
-
 /**
  * Thin wrapper around WordPress transients.
  *
