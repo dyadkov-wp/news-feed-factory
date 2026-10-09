@@ -17,3 +17,7 @@ parameters:
         - NWFF_DIR
         - NWFF_URL
         - NWFF_DB_VERSION
+    ignoreErrors:
+        -
+            message: '#Function tests_add_filter not found\.#'
+            path: tests/bootstrap.php

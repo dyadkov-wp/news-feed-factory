@@ -3,6 +3,9 @@
 composer.phar
 /auth.json
 
+# IDE / tooling
+.phpactor.json
+
 # PHPUnit
 /.phpunit.result.cache
 /.phpunit.cache/
