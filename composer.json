@@ -1,0 +1,55 @@
+{
+  "name": "dyadkov-wp/news-feed-factory",
+  "description": "Generate news feeds in multiple formats (Yandex, Google, Dzen, generic RSS) from WordPress content.",
+  "type": "wordpress-plugin",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.0"
+  },
+  "require-dev": {
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+    "php-stubs/wordpress-stubs": "^6.0",
+    "phpstan/phpstan": "^2.0",
+    "phpunit/phpunit": "^9.6",
+    "squizlabs/php_codesniffer": "^3.10",
+    "szepeviktor/phpstan-wordpress": "^2.0",
+    "wp-coding-standards/wpcs": "^3.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "NWFF\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "NWFF\\Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  },
+  "scripts": {
+    "lint": "phpcs -p -s",
+    "lint:fix": "phpcbf -p",
+    "lint:summary": "phpcs --report=summary",
+    "analyse": "phpstan analyse --memory-limit=1G",
+    "test": "phpunit",
+    "test:unit": "phpunit --testsuite=unit",
+    "test:integration": "phpunit --testsuite=integration",
+    "check": [
+      "@lint",
+      "@analyse",
+      "@test:unit"
+    ]
+  },
+  "repositories": [
+    {
+      "type": "composer",
+      "url": "https://mirrors.aliyun.com/composer/",
+      "canonical": false
+    }
+  ]
+}

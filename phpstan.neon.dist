@@ -1,0 +1,19 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 6
+    paths:
+        - src
+        - tests
+    excludePaths:
+        - vendor
+    treatPhpDocTypesAsCertain: false
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    dynamicConstantNames:
+        - NWFF_VERSION
+        - NWFF_FILE
+        - NWFF_DIR
+        - NWFF_URL
+        - NWFF_DB_VERSION

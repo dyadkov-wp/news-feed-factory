@@ -1,0 +1,44 @@
+# Composer
+/vendor/
+composer.phar
+/auth.json
+
+# PHPUnit
+/.phpunit.result.cache
+/.phpunit.cache/
+/phpunit.xml
+
+# PHP_CodeSniffer (локальный конфиг, коммитится phpcs.xml.dist)
+/phpcs.xml
+/phpcbf.xml
+
+# PHPStan (локальный конфиг, коммитится phpstan.neon.dist)
+/phpstan.neon
+
+# wp-env
+/.wp-env.json
+/.wp-env.override.json
+
+# Компилированные переводы (генерируются, коммитится только .pot)
+*.mo
+
+# IDE
+/.idea/
+/.vscode/
+*.sublime-*
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Релизные артефакты
+/build/
+/*.zip
+/*.tar.gz
+
+# Логи
+*.log

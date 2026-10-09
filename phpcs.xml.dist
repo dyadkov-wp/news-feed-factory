@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<ruleset name="News Feed Factory">
+    <description>PHP_CodeSniffer configuration for News Feed Factory.</description>
+
+    <file>src</file>
+    <file>tests</file>
+    <file>uninstall.php</file>
+    <file>news-feed-factory.php</file>
+
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+
+    <rule ref="WordPress"/>
+
+    <!-- PSR-4 autoloading: filename = classname, WPCS filename sniffs
+         conflict with PSR-4 and are not applicable to src/. -->
+    <rule ref="WordPress.Files.FileName">
+        <exclude name="WordPress.Files.FileName.NotHyphenatedLowercase"/>
+        <exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+    </rule>
+
+	<config name="testVersion" value="8.0-"/>
+    <config name="minimum_wp_version" value="6.0"/>
+</ruleset>
