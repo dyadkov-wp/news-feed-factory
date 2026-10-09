@@ -18,6 +18,9 @@ use PHPUnit\Framework\TestCase;
 final class GenreResolverTest extends TestCase {
 
 	/**
+	 * Build a Yandex settings array with overrides.
+	 *
+	 * @param array<string, mixed> $overrides Settings to override.
 	 * @return array<string, mixed>
 	 */
 	private function settings( array $overrides = array() ): array {
@@ -33,6 +36,10 @@ final class GenreResolverTest extends TestCase {
 	}
 
 	/**
+	 * Build a normalized term entry.
+	 *
+	 * @param int    $id       Term ID.
+	 * @param string $taxonomy Taxonomy name.
 	 * @return array<string, mixed>
 	 */
 	private function tag( int $id, string $taxonomy = 'post_tag' ): array {
@@ -45,6 +52,10 @@ final class GenreResolverTest extends TestCase {
 	}
 
 	/**
+	 * Build a normalized item with terms and content.
+	 *
+	 * @param array<int, mixed> $terms   Normalized terms.
+	 * @param string            $content Raw content string.
 	 * @return array<string, mixed>
 	 */
 	private function item( array $terms = array(), string $content = '' ): array {
@@ -54,6 +65,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Interview tag maps to interview genre.
+	 *
+	 * @return void
+	 */
 	public function test_interview_tag_returns_interview(): void {
 		$item = $this->item( array( $this->tag( 100 ) ) );
 
@@ -63,6 +79,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Article tag maps to article genre.
+	 *
+	 * @return void
+	 */
 	public function test_article_tag_returns_article(): void {
 		$item = $this->item( array( $this->tag( 200 ) ) );
 
@@ -72,6 +93,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Lenta tag maps to lenta genre.
+	 *
+	 * @return void
+	 */
 	public function test_lenta_tag_returns_lenta(): void {
 		$item = $this->item( array( $this->tag( 300 ) ) );
 
@@ -81,6 +107,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Interview has priority over article and lenta tags.
+	 *
+	 * @return void
+	 */
 	public function test_interview_wins_over_article_and_lenta(): void {
 		$item = $this->item( array( $this->tag( 100 ), $this->tag( 200 ), $this->tag( 300 ) ) );
 
@@ -99,6 +130,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Article has priority over lenta tag.
+	 *
+	 * @return void
+	 */
 	public function test_article_wins_over_lenta(): void {
 		$item = $this->item( array( $this->tag( 200 ), $this->tag( 300 ) ) );
 
@@ -116,6 +152,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Tag ID of zero disables that check.
+	 *
+	 * @return void
+	 */
 	public function test_zero_tag_id_skips_check(): void {
 		$item = $this->item( array( $this->tag( 100 ) ) );
 
@@ -125,6 +166,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Category with matching ID does not trigger a tag rule.
+	 *
+	 * @return void
+	 */
 	public function test_category_with_matching_id_does_not_trigger(): void {
 		$item = $this->item( array( $this->tag( 100, 'category' ) ) );
 
@@ -134,6 +180,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Short content below threshold resolves to lenta when by_length is on.
+	 *
+	 * @return void
+	 */
 	public function test_by_length_short_content_is_lenta(): void {
 		$item = $this->item( array(), 'Короткая заметка' );
 
@@ -143,6 +194,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Content length 79 is below threshold and resolves to lenta.
+	 *
+	 * @return void
+	 */
 	public function test_by_length_content_length_79_is_lenta(): void {
 		$item = $this->item( array(), str_repeat( 'a', 79 ) );
 
@@ -152,6 +208,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Content length 80 hits the boundary and resolves to message.
+	 *
+	 * @return void
+	 */
 	public function test_by_length_content_length_80_is_message(): void {
 		$item = $this->item( array(), str_repeat( 'a', 80 ) );
 
@@ -161,6 +222,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * by_length disabled forces short content to message.
+	 *
+	 * @return void
+	 */
 	public function test_by_length_disabled_short_content_is_message(): void {
 		$item = $this->item( array(), 'short' );
 
@@ -170,6 +236,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Empty content with by_length on resolves to lenta.
+	 *
+	 * @return void
+	 */
 	public function test_empty_content_with_by_length_is_lenta(): void {
 		$item = $this->item( array(), '' );
 
@@ -179,6 +250,11 @@ final class GenreResolverTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Default fallback is message.
+	 *
+	 * @return void
+	 */
 	public function test_default_is_message(): void {
 		$item = $this->item( array(), str_repeat( 'a', 200 ) );
 
