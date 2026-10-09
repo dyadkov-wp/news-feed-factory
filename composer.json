@@ -38,7 +38,7 @@
     "lint:summary": "phpcs --report=summary",
     "analyse": "phpstan analyse --memory-limit=1G",
     "test": "phpunit",
-    "test:unit": "phpunit --testsuite=unit",
+    "test:unit": "phpunit --bootstrap tests/bootstrap-unit.php --testsuite=unit",
     "test:integration": "phpunit --testsuite=integration",
     "check": [
       "@lint",
