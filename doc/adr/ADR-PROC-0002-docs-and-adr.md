@@ -54,18 +54,37 @@ CHANGELOG ведётся, если продукт публикуется в ре
 
 ### Где живут документы
 
+Один уровень ADR: в репозитории продукта, папка `doc/adr/`.
+Общего handbook нет и не будет.
+
 | Документ | Расположение |
 | --- | --- |
 | ADR | `doc/adr/` |
 | Индекс ADR | `doc/adr/index.md` |
-| BACKLOG (техдолг, отложенные задачи) | корень репозитория |
-| README | корень репозитория |
-| readme.txt (WordPress.org) | корень репозитория |
-| CHANGELOG | корень репозитория |
-| LICENSE | корень репозитория |
+| BACKLOG | корень |
+| README.md | корень |
+| readme.txt | корень |
+| CHANGELOG.md | корень |
+| LICENSE | корень |
+| CONTRIBUTING.md | корень |
 
-Правило: ADR — в `doc/adr/`. Всё остальное — в корне или рядом с тем, к
-чему относится. Не смешивать ADR с другими документами в одной папке.
+Правило: `doc/` — только ADR. Всё остальное — в корне репозитория.
+
+### Язык документации
+
+| Документ | Язык |
+| --- | --- |
+| ADR | Русский |
+| BACKLOG | Русский |
+| README.md | English |
+| readme.txt | English |
+| CHANGELOG.md | English |
+| CONTRIBUTING.md | English |
+| Комментарии в коде | English |
+| Сообщения коммитов | English |
+
+Граница: **принятие решений — русский** (ADR, BACKLOG),
+**публичное — English** (README, readme, CONTRIBUTING, CHANGELOG).
 
 ### Вложенные code blocks
 
