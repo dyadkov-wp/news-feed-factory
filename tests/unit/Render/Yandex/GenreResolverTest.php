@@ -223,7 +223,7 @@ final class GenreResolverTest extends TestCase {
 	}
 
 	/**
-	 * by_length disabled forces short content to message.
+	 * Disabled by_length forces short content to message.
 	 *
 	 * @return void
 	 */
