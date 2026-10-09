@@ -68,6 +68,8 @@ public function get_normalization_config(): array {
 
 ### Логика жанра
 
+«Тег» здесь и далее = term с taxonomy = post_tag. Совпадение id с категорией не считается.
+
 `GenreResolver::resolve( array $item, array $settings ): string`
 
 Порядок проверки:
@@ -275,6 +277,7 @@ public function get_normalization_config(): array {
 - **Уточняется в:** нет.
 - **Связано с:** ADR-PROC-0001 (рабочий цикл),
   ADR-PROC-0002 (документация и ADR).
+- **Источник требований:** [Свежее и актуальное](https://yandex.ru/support/webmaster/search-appearance/news.html)
 
 ## Открытые вопросы
 
