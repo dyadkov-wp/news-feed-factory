@@ -2,7 +2,7 @@
 
 **Статус:** Proposed
 **Создано:** 2026-10-02
-**Обновлено:** 2026-10-02
+**Обновлено:** 2026-10-09
 
 ## Контекст
 
@@ -147,6 +147,51 @@ public function get_normalization_config(): array;
 | `truncate_limit` | Формат канала | Рендер | После санитизации |
 
 Не смешивать. Первый — про память и CPU. Второй — про эстетику.
+
+### Контракт Truncator
+
+`Truncator::truncate( string $text, string $mode, int $limit ): string`
+
+**Вход** — plain text, абзацы разделены `\n\n`. HTML к моменту вызова
+уже удалён `HtmlSanitizer::to_plain()`. Truncator HTML не разбирает и
+не удаляет.
+
+**Режимы:**
+
+| `mode` | `limit` | Поведение |
+| --- | --- | --- |
+| `none` | игнорируется | текст без изменений |
+| `chars` | символы | до N символов по последнему полному слову |
+| `words` | слова | первые N слов |
+| `first_paragraph` | символы | первый абзац; при `limit > 0` ужать по словам |
+
+**Правила:**
+
+- `limit <= 0` — «не обрезать по длине». Режим сохраняется:
+  `first_paragraph` вернёт весь первый абзац, `chars`/`words` — весь
+  текст.
+- Граница обрезки — всегда **полное слово**. Часть слова не отдаём.
+- Многоточие не добавляется — это ответственность вызывающего кода.
+- Две оси независимы: `mode` выбирает фрагмент, `limit` — длину.
+- Пустая строка или строка из пробелов → пустая строка.
+
+**Примеры** (`\n\n` — граница абзаца):
+
+```
+truncate( "hello world", "chars", 7 )                   → "hello"
+truncate( "hello world", "words", 1 )                   → "hello"
+truncate( "a\n\nb\n\nc", "first_paragraph", 0 )         → "a"
+truncate( "hello world\n\nnext", "first_paragraph", 3 ) → "hello"
+truncate( "hello world", "none", 5 )                    → "hello world"
+truncate( "hello world", "chars", 0 )                   → "hello world"
+truncate( "verylongword short", "chars", 5 )            → ""
+```
+
+Расхождение с Python-референсом (`content_transform.py::truncate`):
+там режим `words` фактически режет **по символам**, сохраняя абзацы;
+здесь `chars` и `words` — две разные единицы измерения. Если понадобится
+сохранение абзацев при обрезке по символам — отдельный режим, отдельным
+ADR.
 
 ### Обрезка mid-tag
 
