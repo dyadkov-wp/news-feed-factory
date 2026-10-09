@@ -33,3 +33,20 @@ composer config audit.audit-db /opt/security-advisories
 
 **Когда делать.** Перед первым публичным релизом или при появлении
 production-зависимостей (не dev).
+
+### TD-02: Защита unit-прогона от silent exit
+
+**Контекст.** `exit` / `die` в autoloadable-классах убивает PHPUnit
+тихо, с кодом 0. В PROC-0002 мы убрали `ABSPATH`-guard из `src/`,
+но защита от **новых** подобных ситуаций — только через ревью и
+ADR-PROC-0005.
+
+**Что делать потом.** Добавить в `tests/bootstrap-unit.php` или в
+`composer test:unit` проверку: если PHPUnit завершился с кодом 0, но
+не напечатал `OK (N tests...)` — считать прогон неуспешным. Варианты:
+
+- `register_shutdown_function` в bootstrap, пишущий маркер в конце.
+- Обёртка над phpunit, парсящая вывод.
+- PHPStan-расширение на запрет top-level `exit`/`die`.
+
+**Когда делать.** При появлении CI или перед публичным релизом.
