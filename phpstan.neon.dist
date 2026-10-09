@@ -20,4 +20,4 @@ parameters:
     ignoreErrors:
         -
             message: '#Function tests_add_filter not found\.#'
-            path: tests/bootstrap.php
+            path: tests/bootstrap-integration.php
