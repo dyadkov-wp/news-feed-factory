@@ -11,6 +11,7 @@ parameters:
     treatPhpDocTypesAsCertain: false
     bootstrapFiles:
         - phpstan-bootstrap.php
+        - tests/phpstan-stubs/wp-test-case.php
     dynamicConstantNames:
         - NWFF_VERSION
         - NWFF_FILE
