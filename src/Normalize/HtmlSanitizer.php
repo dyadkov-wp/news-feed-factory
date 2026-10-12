@@ -12,9 +12,8 @@ namespace NWFF\Normalize;
 /**
  * Converts HTML to plain text and sanitizes markup (ADR-ARCH-0002).
  *
- * The sanitize() method will be added in a later cycle. This class
- * currently exposes only the plain-text conversion used by Truncator
- * for excerpt fields.
+ * Converts HTML to plain text (for excerpt) and sanitizes markup
+ * against a wp_kses whitelist (for content).
  */
 final class HtmlSanitizer {
 
@@ -61,5 +60,27 @@ final class HtmlSanitizer {
 		}
 
 		return implode( "\n\n", $clean );
+	}
+	/**
+	 * Sanitize HTML against a wp_kses whitelist.
+	 *
+	 * Null whitelist falls back to wp_kses_post (WordPress post
+	 * default). Empty array strips all tags, keeping text content.
+	 * Non-null array is passed to wp_kses as-is.
+	 *
+	 * @param string                    $html         Source HTML.
+	 * @param array<string, mixed>|null $allowed_html wp_kses whitelist, or null for the post default.
+	 * @return string Sanitized HTML.
+	 */
+	public function sanitize( string $html, ?array $allowed_html = null ): string {
+		if ( '' === $html ) {
+			return '';
+		}
+
+		if ( null === $allowed_html ) {
+			return wp_kses_post( $html );
+		}
+
+		return wp_kses( $html, $allowed_html );
 	}
 }
