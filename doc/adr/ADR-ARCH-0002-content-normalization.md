@@ -193,6 +193,76 @@ truncate( "verylongword short", "chars", 5 )            → ""
 сохранение абзацев при обрезке по символам — отдельный режим, отдельным
 ADR.
 
+### Контракт HtmlSanitizer::to_plain
+
+`HtmlSanitizer::to_plain( string $html ): string`
+
+Преобразует rendered HTML в plain text с абзацами через `\n\n`.
+Используется перед `Truncator` для `excerpt`. Для `content`
+(`yandex:full-text`) не применяется — Яндекс получает sanitized HTML
+как есть.
+
+Порядок операций:
+
+1. Декодирование HTML-entities (`html_entity_decode`, `ENT_QUOTES |
+   ENT_HTML5`, UTF-8).
+2. Non-breaking space (U+00A0) → обычный пробел.
+3. Блочные теги (`<p>`, `<div>`) → `\n\n`. Открывающий и закрывающий
+   обрабатываются одинаково — `</p>` тоже даёт `\n\n`.
+4. `<br>`, `<br/>`, `<br />` → `\n`.
+5. Удаление остальных тегов.
+6. Удаление маркера обрыва в конце текста: `[…]` или `[...]`.
+7. Нормализация: 3+ `\n` → `\n\n`; схлопывание пробелов и табов внутри
+   абзаца до одного; trim каждого абзаца; пустые абзацы удаляются.
+
+`wp_kses` здесь не вызывается — sanitize отдельный метод. `to_plain`
+работает с уже sanitized HTML или с rendered HTML, полученным из REST.
+
+**Пример** (типичный `excerpt.rendered` из WP):
+```text
+вход: <p>Торжественная церемония … состоялась в Екатеринбурге. … […]</p>
+выход: Торжественная церемония … состоялась в Екатеринбурге
+```
+
+### Контракт HtmlSanitizer::sanitize
+
+`HtmlSanitizer::sanitize( string $html, ?array $allowed_html = null ): string`
+
+Очищает HTML по whitelist'у тегов и атрибутов. Вызывается в
+нормализации контента после ресурсного лимита и до редакционных
+вырезов (см. «Порядок обработки»).
+
+**Поведение:**
+
+- `$allowed_html === null` → `wp_kses_post( $html )`, встроенный
+  пост-whitelist WordPress.
+- `$allowed_html` — массив формата `wp_kses` (`['a' => ['href' =>
+  true, 'title' => true], 'p' => []]`) → `wp_kses( $html,
+  $allowed_html )`.
+- `$allowed_html === []` → пустой whitelist, все теги вырезаются,
+  остаётся только plain text. Это отличается от `null` (дефолт).
+- Пустая строка на входе → пустая строка на выходе.
+- HTML без тегов → возвращается как есть.
+
+`wp_kses` не декодирует entities, не трогает пробелы, не удаляет
+маркер обрыва. Всё это — задачи соседних методов (`to_plain`).
+
+**Согласование с `get_normalization_config()`.** Рендер возвращает
+`allowed_html`. Если ключ отсутствует или `null` — используется
+дефолт (`wp_kses_post`). Если массив — передаётся как есть.
+
+**Примеры:**
+
+```
+sanitize( '<p>Hello</p>', null )                        → '<p>Hello</p>'
+sanitize( '<p>Hello</p>', [ 'p' => [] ] )               → '<p>Hello</p>'
+sanitize( '<p><a href="#">Hi</a></p>', [ 'p' => [] ] )  → '<p>Hi</p>'
+sanitize( '<script>alert(1)</script>', null )           → ''
+```
+
+**Тестирование:** integration (`@group integration`), так как `wp_kses`
+загружается WordPress test suite. В unit-прогон не входит.
+
 ### Обрезка mid-tag
 
 Если ресурсный лимит попал в середину HTML-тега (`<a href="https://examp`),
