@@ -65,7 +65,7 @@ final class ImageExtractorTest extends WP_UnitTestCase {
 	 */
 	public static function tear_down_after_class(): void {
 		if ( '' !== self::$image_file && file_exists( self::$image_file ) ) {
-			unlink( self::$image_file );
+			wp_delete_file( self::$image_file );
 		}
 		parent::tear_down_after_class();
 	}
