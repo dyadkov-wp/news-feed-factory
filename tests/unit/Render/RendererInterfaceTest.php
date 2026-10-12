@@ -29,7 +29,7 @@ final class RendererInterfaceTest extends TestCase {
 	}
 
 	/**
-	 * get_slug returns string and takes no arguments.
+	 * Slug getter returns a string and takes no arguments.
 	 *
 	 * @return void
 	 */
@@ -41,7 +41,7 @@ final class RendererInterfaceTest extends TestCase {
 	}
 
 	/**
-	 * get_content_type returns string and takes no arguments.
+	 * Content type getter returns a string and takes no arguments.
 	 *
 	 * @return void
 	 */
@@ -53,7 +53,7 @@ final class RendererInterfaceTest extends TestCase {
 	}
 
 	/**
-	 * get_normalization_config returns array and takes no arguments.
+	 * Normalization config getter returns an array and takes no arguments.
 	 *
 	 * @return void
 	 */
@@ -65,7 +65,7 @@ final class RendererInterfaceTest extends TestCase {
 	}
 
 	/**
-	 * render takes two array arguments and returns string.
+	 * Render takes two array arguments and returns a string.
 	 *
 	 * @return void
 	 */
