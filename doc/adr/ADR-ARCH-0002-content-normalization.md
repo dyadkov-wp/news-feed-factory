@@ -263,6 +263,49 @@ sanitize( '<script>alert(1)</script>', null )           → ''
 **Тестирование:** integration (`@group integration`), так как `wp_kses`
 загружается WordPress test suite. В unit-прогон не входит.
 
+### Контракт ImageExtractor
+
+`ImageExtractor::extract( int $post_id, array $config ): ?array`
+
+Достаёт featured image записи и возвращает `url`, `width`, `height`.
+Применяет пороги `image_min_width` / `image_min_height` из конфига
+нормализации.
+
+**Возврат:**
+
+```php
+[
+    'url'    => string,   // абсолютный URL
+    'width'  => int,      // ширина в пикселях
+    'height' => int,      // высота в пикселях
+]
+```
+
+или `null`, если изображения нет или оно отброшено.
+
+**Порядок:**
+
+1. `get_post_thumbnail_id( $post_id )`. Нет ID → `null`.
+2. `wp_get_attachment_image_src( $attachment_id, 'full' )`. Возвращает
+   `false` (битый ID) → `null`.
+3. Пороги: `image_min_width` и `image_min_height`. Значение `null` или
+   `0` — фильтр не применяется. Иначе `width < min` → `null`,
+   `height < min` → `null`. Оба порога проверяются независимо, при
+   провале любого — `null`.
+4. Иначе — массив с `url`, `width`, `height`.
+
+**Размер `'full'`** — оригинал вложения. Замена на `large`/`medium` не
+вводится: ADR-PRODUCT-0001 не требует ужимать картинку в фиде, а
+рендерер сам решает, что делать с URL. Если понадобится — отдельным
+ADR.
+
+**Поиск картинки в контенте** (если featured нет) остаётся открытым
+вопросом ADR — этот метод его не закрывает.
+
+**Тестирование:** integration (`@group integration`), так как нужны
+`WP_UnitTestCase::factory()`, `set_post_thumbnail()` и реальное
+вложение. В unit-прогон не входит.
+
 ### Обрезка mid-tag
 
 Если ресурсный лимит попал в середину HTML-тега (`<a href="https://examp`),
