@@ -103,38 +103,48 @@ public function get_normalization_config(): array;
 
 ### Порядок обработки
 
-Для каждого поля — свой порядок, но общая идея: сначала защита, потом
-форматирование.
+Два разных пайплайна для двух полей контента плюс отдельные процедуры
+для заголовка, даты, картинки и терминов. Общая идея: сначала защита,
+потом форматирование.
 
-**Контент и анонс:**
+**`content` — sanitized HTML.** Остаётся HTML после обработки: этого
+требует `yandex:full-text` (CDATA с разметкой). Форматная обрезка
+(`truncate_mode`) к `content` **не применяется** — Яндекс хочет полный
+текст.
 
-```
-1. Ресурсный лимит (max_content_length) — до всего, на сырой HTML
-2. Декодирование entities
-3. Санитизация по allowed_html
-4. Редакционные вырезы (content_filters)
-5. Форматная обрезка (truncate_mode + truncate_limit)
-```
+1. Ресурсный лимит `max_content_length` — до sanitize, на сырой HTML.
+2. `HtmlSanitizer::sanitize( $html, $allowed_html )` — whitelist тегов
+   и атрибутов, HTML остаётся.
+3. Редакционные вырезы `content_filters` — если заданы в конфиге.
 
-Ресурсный лимит — **до** санитизации: цель — не гонять regex по гигантской
-строке. Форматная обрезка — **после** санитизации: цель — уложиться в
-эстетический лимит канала.
+**`excerpt` — plain text.** Теряет все теги: этого требуют `description`
+в RSS и подобные поля. Абзацы сохраняются как `\n\n`.
 
-**Заголовок:** декодирование + plain.
+1. Ресурсный лимит `max_content_length` — до всех преобразований.
+2. `HtmlSanitizer::to_plain( $html )` — decode entities, блочные теги →
+   `\n\n`, остальные теги удалены.
+3. `Truncator::truncate( $plain, $mode, $limit )` — если
+   `$config['truncate_mode'] !== 'none'`.
 
-**Дата:** `post_date_gmt` → `DateTimeImmutable` (UTC). Формат (RFC 2822
+Редакционные вырезы `content_filters` к `excerpt` **не применяются**:
+они работают с HTML (убрать блок «читайте также», соцкнопки), к
+plain-тексту неприменимы.
+
+**Заголовок.** Декодирование entities + trim. Форматная обрезка на
+уровне нормализатора не делается — `Truncator` вызывается рендерером,
+если формат канала требует (например, Яндекс требует 200 символов, см.
+ADR-ARCH-0003).
+
+**Дата.** `post_date_gmt` → `DateTimeImmutable` в UTC. Формат (RFC 2822
 или W3C) применяет рендерер — нормализатор отдаёт объект.
 
-**Картинка:**
+**Картинка и термины.** Извлекаются в `Collector`, до
+`ContentNormalizer` — там, где уже есть доступ к `$post_id` и WP-API.
+Нормализатор получает готовые `image_*` и `terms` в `$raw`.
 
-```
-1. Featured image (get_post_thumbnail_id + wp_get_attachment_image_src)
-2. Если размеры меньше image_min_width / image_min_height — отбрасываем
-3. Если нет featured — null (поиск в контенте — открытый вопрос)
-```
-
-**Термины:** если `include_terms = true` — `wp_get_post_terms()` для
-категорий и тегов. Порядок — по имени.
+Ресурсный лимит `max_content_length` — **до** санитизации: цель — не
+гонять regex по гигантской строке. Форматная обрезка `truncate_limit` —
+**после** санитизации: цель — уложиться в эстетический лимит канала.
 
 ### Ресурсный лимит vs форматная обрезка
 
@@ -143,7 +153,7 @@ public function get_normalization_config(): array;
 
 | Лимит | Цель | Где задаётся | Когда применяется |
 | --- | --- | --- | --- |
-| `max_content_length` | Защита ресурсов | Рендер (или дефолт `null`) | До санитизации |
+| `max_content_length` | Защита ресурсов | Рендер (или дефолт `null`) | До sanitize, только к `content` |
 | `truncate_limit` | Формат канала | Рендер | После санитизации |
 
 Не смешивать. Первый — про память и CPU. Второй — про эстетику.
@@ -306,6 +316,74 @@ ADR.
 `WP_UnitTestCase::factory()`, `set_post_thumbnail()` и реальное
 вложение. В unit-прогон не входит.
 
+### Контракт ContentNormalizer::normalize
+
+`ContentNormalizer::normalize( array $raw, array $config ): ?array`
+
+Фасад слоя нормализации. Принимает «сырой» массив от `Collector`,
+возвращает нормализованный элемент (см. «Нормализованный элемент») или
+`null`, если запись нельзя отдать в фид.
+
+**Форма `$raw`.** Фиксированная структура, а не конфигурируемый список
+полей. Отличие от REST-источника: у нас `Collector` работает с
+`WP_Query`, набор полей известен заранее. Форма:
+
+```php
+[
+    'id'           => string,       // guid
+    'link'         => string,
+    'title'        => string,       // rendered HTML (entities допустимы)
+    'content'      => string,       // УЖЕ sanitized HTML (Collector применил wp_kses)
+    'excerpt'      => string,       // rendered HTML (raw)
+    'published'    => string,       // MySQL datetime (post_date_gmt)
+    'image_url'    => ?string,      // результат ImageExtractor
+    'image_width'  => ?int,
+    'image_height' => ?int,
+    'terms'        => array,        // плоский список (см. «Нормализованный элемент»)
+]
+```
+
+**Почему `content` приходит уже sanitized, а `excerpt` — нет.** Это
+следствие разделения WP-зависимостей. `HtmlSanitizer::sanitize()`
+требует `wp_kses` (WP-функция), поэтому вызывается в `Collector` — на
+границе с WP. `HtmlSanitizer::to_plain()` — чистый PHP, поэтому
+вызывается внутри `ContentNormalizer`. Такое разделение делает
+`ContentNormalizer` unit-тестируемым: внутри нет WP-функций.
+
+**Форма `$config`.** Из `RendererInterface::get_normalization_config()`,
+смёрженная с дефолтами. Полный набор ключей — в таблице выше.
+
+**Порядок обработки полей:**
+
+1. **Обязательные поля.** Если `id`, `link` или `title` — пустая строка
+   или не строка → `null` (пропуск записи).
+2. **Дата.** `published`: пусто, `'0000-00-00 00:00:00'`, `null` или не
+   парсится `DateTimeImmutable` → `null`. Иначе —
+   `setTimezone( new DateTimeZone( 'UTC' ) )`.
+3. **Заголовок.** `html_entity_decode` + trim.
+4. **`content`.** Переносится как есть (уже sanitized в `Collector`).
+5. **`excerpt`.** `HtmlSanitizer::to_plain()`, затем
+   `Truncator::truncate()`, если `truncate_mode !== 'none'`.
+6. **`image_*`.** Переносятся как есть из `$raw`. Пороги
+   `image_min_width` / `image_min_height` уже применил `ImageExtractor`
+   в `Collector` — повторная проверка не делается.
+7. **`terms`.** Если `include_terms = false` — `[]`. Иначе — как пришло
+   из `Collector` (порядок: сначала категории по `name`, потом теги по
+   `name`).
+
+**Возврат.** Ассоциативный массив из секции «Нормализованный элемент»
+или `null`. Ключ `terms` присутствует всегда (пустой массив при
+`include_terms = false`).
+
+**Разделение ответственности:**
+
+- `Collector` — всё, что требует WP API: `WP_Query`, метаданные,
+  `ImageExtractor`, `wp_get_post_terms()`, `HtmlSanitizer::sanitize()`
+  для `content`, `content_filters`.
+- `ContentNormalizer` — чистые преобразования: валидация обязательных
+  полей, парсинг даты, decode заголовка, `to_plain` для `excerpt`,
+  `Truncator`, сборка выходного массива.
+
 ### Обрезка mid-tag
 
 Если ресурсный лимит попал в середину HTML-тега (`<a href="https://examp`),
@@ -340,18 +418,43 @@ $cut = preg_replace( '/<[^>]*$/u', '', $cut );
 
 ### Обработка ошибок
 
-Нормализация **не роняет фид**. Правила:
+Нормализация **не роняет фид**. Правила по уровням:
 
-- Картинка не найдена или отброшена по размеру → `image_url = null`,
-  `WARNING` в лог.
-- Featured image — битый attachment ID → `image_url = null`, `WARNING`.
-- Дата невалидна → запись пропускается с `WARNING` (не публикуем без даты).
-- Отсутствует `post_content` → `content = ''`, `WARNING`.
-- Ошибка в `content_filter` (исключение) → `WARNING`, фильтр пропускается,
-  остальные вырезы применяются.
+**Пропуск записи (`normalize` возвращает `null`):**
 
-Логика: пост без картинки — можно публиковать, пост без даты — нельзя.
-Правило согласуется с общим подходом (не падать на аномалиях источника).
+- `id` отсутствует, пустой или не строка.
+- `link` отсутствует, пустой или не строка.
+- `title` отсутствует, пустой или не строка.
+- `published` пуст, равен `'0000-00-00 00:00:00'`, `null`, или
+  `new DateTimeImmutable( $value )` бросает исключение.
+
+Пропуск сопровождается `WARNING` в лог с указанием, какое поле
+отсутствовало.
+
+**Не пропуск, но заполнение дефолтом:**
+
+- `content` пуст → `content = ''`. `WARNING` в лог.
+- `excerpt` пуст или `to_plain` вернул пустую строку →
+  `excerpt = ''`. Без `WARNING`: WP отдаёт пустой excerpt штатно.
+- `image_url` отсутствует (`null`) → `image_url = null`,
+  `image_width = null`, `image_height = null`. Без `WARNING`: у поста
+  может не быть featured image — это норма.
+- `terms` отсутствует или не массив → `terms = []`. Без `WARNING`.
+
+**Внутренние ошибки:**
+
+- `ImageExtractor` вернул `null` из-за битого attachment ID — `WARNING`
+  уже записан в `Collector`, `ContentNormalizer` просто получает
+  `image_url = null`.
+- Исключение в `content_filter` — `WARNING`, фильтр пропускается,
+  остальные вырезы применяются. Это происходит в `Collector`, до
+  `ContentNormalizer`.
+
+**Логика.** Пост без картинки — публикуем. Пост без excerpt —
+публикуем (в шаблоне рендера `description` может быть опциональным,
+ADR-ARCH-0003). Пост без id/link/title/даты — не публикуем. Правило
+согласуется с общим подходом: не падать на аномалиях источника, но и
+не отдавать в фид заведомо неполные данные.
 
 ### Точки расширения
 
@@ -367,10 +470,16 @@ $cut = preg_replace( '/<[^>]*$/u', '', $cut );
 
 ### Тестирование
 
-- **Unit:** `Truncator`, `HtmlSanitizer` (без WP-зависимостей или с
-  моками). `ContentNormalizer` — с фикстурами.
-- **Integration:** `ImageExtractor` (требует attachment), `terms`
-  (требует таксономий). Помечаются `@group integration`.
+- **Unit:** `Truncator`, `HtmlSanitizer::to_plain`, `ContentNormalizer`
+  (с фикстурами `$raw`). Все три работают без WordPress.
+- **Integration:** `HtmlSanitizer::sanitize` (требует `wp_kses`),
+  `ImageExtractor` (требует attachment), `terms` (требует таксономий).
+  Помечаются `@group integration`.
+
+`ContentNormalizer` — unit, потому что все WP-зависимости вынесены в
+`Collector` (см. «Контракт ContentNormalizer::normalize»). Внутри
+класса — только чистые PHP-вызовы: `html_entity_decode`,
+`DateTimeImmutable`, `HtmlSanitizer::to_plain`, `Truncator::truncate`.
 
 ## Последствия
 
@@ -451,3 +560,12 @@ $cut = preg_replace( '/<[^>]*$/u', '', $cut );
   Если появится второй рендер с теми же данными, но другим форматом —
   возможно, имеет смысл кэшировать нормализованный массив отдельно.
   Пока — нет.
+- **Plain-версия полного `content`.** Сейчас `content` остаётся
+  sanitized HTML — этого требует `yandex:full-text`. Но может появиться
+  рендер, которому нужен plain text **полного** контента (например,
+  RSS для ВК с `first_paragraph`, взятым от `content`, а не от
+  `excerpt`). Тогда — либо отдельный конфиг-ключ
+  (`content_mode = 'html' | 'plain'`), либо второе поле
+  `content_plain` в нормализованном элементе. Пока не решаем (YAGNI):
+  `Truncator` уже умеет `first_paragraph`, вопрос только в том, откуда
+  брать plain. Возвращаемся, когда появится конкретный рендер.
