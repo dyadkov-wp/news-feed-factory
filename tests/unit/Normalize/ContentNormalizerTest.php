@@ -230,8 +230,7 @@ final class ContentNormalizerTest extends TestCase {
 	 *
 	 * @return void
 	 */
-	public function test_title_entities_decoded(): void
-	{
+	public function test_title_entities_decoded(): void {
 		$result = $this->normalizer->normalize(
 			$this->raw( array( 'title' => 'Tom &amp; Jerry' ) ),
 			$this->config()
