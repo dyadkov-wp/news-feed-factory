@@ -1,0 +1,57 @@
+
+#!/bin/sh
+
+#
+
+# Run PHPCS on staged PHP files before allowing a commit.
+
+# Install with: composer install-hooks
+
+#
+
+
+
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep '\.php$' || true)
+
+
+
+if [ -z "$staged" ]; then
+
+	exit 0
+
+fi
+
+
+
+if [ ! -x vendor/bin/phpcs ]; then
+
+	echo "pre-commit: vendor/bin/phpcs not found. Run composer install." >&2
+
+	exit 1
+
+fi
+
+
+
+echo "pre-commit: running PHPCS on staged files..."
+
+if ! vendor/bin/phpcs -p -s $staged; then
+
+	echo "" >&2
+
+	echo "pre-commit: PHPCS failed. Fix the issues above before committing." >&2
+
+	echo "  Auto-fix:  composer lint:fix" >&2
+
+	echo "  Re-add:    git add <files>" >&2
+
+	echo "  Bypass:    git commit --no-verify" >&2
+
+	exit 1
+
+fi
+
+
+
+exit 0
+

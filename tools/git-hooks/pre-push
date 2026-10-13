@@ -1,0 +1,23 @@
+
+#!/bin/sh
+
+#
+
+# Run composer check before allowing a push.
+
+# Install with: composer install-hooks
+
+#
+
+echo "pre-push: running composer check..."
+
+if ! composer check; then
+
+	echo "pre-push: composer check failed." >&2
+
+	exit 1
+
+fi
+
+exit 0
+

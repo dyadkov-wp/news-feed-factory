@@ -44,6 +44,13 @@
       "@lint",
       "@analyse",
       "@test:unit"
+    ],
+    "install-hooks": "cp tools/git-hooks/pre-commit .git/hooks/pre-commit && cp tools/git-hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-commit .git/hooks/pre-push && echo 'git hooks installed'",
+    "post-install-cmd": [
+      "@install-hooks"
+    ],
+    "post-update-cmd": [
+      "@install-hooks"
     ]
   },
   "repositories": [
