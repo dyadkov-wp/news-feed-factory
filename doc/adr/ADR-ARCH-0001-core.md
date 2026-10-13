@@ -2,7 +2,7 @@
 
 **Статус:** Proposed
 **Создано:** 2026-10-02
-**Обновлено:** 2026-10-02
+**Обновлено:** 2026-10-13
 
 ## Контекст
 
@@ -14,8 +14,9 @@
 таблицы, поток данных, кэширование, точки расширения. Иначе каждый рендерер
 потянет за собой свою логику выборки и кэша, и ядро расползётся.
 
-Этот ADR покрывает **ядро**. Специфика каждого формата — отдельные ADR
-(`ADR-ARCH-0002` — Яндекс, `ADR-ARCH-0003` — Google, `ADR-ARCH-0004` — Дзен).
+Этот ADR покрывает **ядро**. Нормализация контента — `ADR-ARCH-0002`.
+Специфика форматов — отдельные ADR: `ADR-ARCH-0003` (Яндекс),
+`ADR-ARCH-0004` (Google, TBD), `ADR-ARCH-0005` (Дзен, TBD).
 
 ## Решение
 
@@ -45,16 +46,26 @@ news-feed-factory/
 │   │   └── Collector.php       # единый сборщик
 │   ├── Cache/
 │   │   └── TransientCache.php  # обёртка над транзиентами
+│   ├── Normalize/
+│   │   ├── ContentNormalizer.php   # фасад слоя нормализации
+│   │   ├── HtmlSanitizer.php       # sanitize + to_plain
+│   │   ├── Truncator.php           # ресурсный и форматный обрез
+│   │   └── ImageExtractor.php      # featured image
 │   ├── Render/
 │   │   ├── RendererInterface.php
-│   │   └── YandexRenderer.php  # на этапе 1
+│   │   ├── YandexRenderer.php      # на этапе 1
+│   │   └── Yandex/
+│   │       └── GenreResolver.php   # жанр Яндекса
 │   ├── Feed/
 │   │   └── Endpoint.php        # регистрация /feed/{slug}
 │   └── Admin/
 │       └── PostFlags.php       # метабокс на записи
 ├── tests/
+│   ├── bootstrap-unit.php         # только Composer autoload
+│   ├── bootstrap-integration.php  # WP test suite + plugin
 │   ├── unit/
-│   └── integration/
+│   ├── integration/
+│   └── phpstan-stubs/             # WP_UnitTestCase и фабрики
 └── doc/
     └── adr/
 ```
@@ -63,6 +74,11 @@ news-feed-factory/
 Конфиги линтеров и тестов — в формате `.dist`: шаблон коммитится, локальные
 переопределения (`phpcs.xml`, `phpstan.neon`, `phpunit.xml`) игнорируются git'ом.
 
+Два bootstrap-файла — по ADR-PROC-0004. Unit-прогон идёт без WP, integration
+поднимает WP test suite. `phpunit.xml.dist` дефолтится на integration как
+безопасный вариант для WP-плагина; `composer test:unit` переопределяет
+bootstrap через CLI.
+
 ### Кастомная таблица `{prefix}nwff_feed_meta`
 
 Схема:
@@ -70,10 +86,18 @@ news-feed-factory/
 | Поле | Тип | Назначение |
 | --- | --- | --- |
 | `post_id` | BIGINT UNSIGNED NOT NULL | PK, уникальный |
-| `exclude_from_feeds` | TINYINT(1) NOT NULL DEFAULT 0 | Флаг «Отдавать в ленты» |
+| `exclude_from_feeds` | TINYINT(1) NOT NULL DEFAULT 0 | 1 — запись исключена из лент; 0 — отдаётся |
 | `updated_at` | DATETIME NOT NULL | Для очистки |
 
 Первичный ключ — `post_id`. Индекс по `updated_at` для cron-очистки.
+
+**Семантика `exclude_from_feeds`.** Колонка хранит инвертированный флаг:
+значение `0` (default) — отдавать, `1` — исключить. UI-чекбокс в метабоксе
+подписан положительно («Отдавать в ленты», default on) и инвертирует
+значение при сохранении. Выбор имени колонки — под будущие сценарии, где
+исключение встречается редко; при инвертировании «по умолчанию отдаём» —
+default `0`, и SQL-условие выборки в `Collector` остаётся читаемым
+(`WHERE exclude_from_feeds = 0`).
 
 **Точки расширения:** рендерер может добавить свои поля через отдельный
 `ALTER TABLE` в своём ADR. Ядро не знает о специфичных полях.
@@ -88,21 +112,44 @@ news-feed-factory/
 2. Проверка транзиента по ключу
 3. Если промах — Collector::collect( $args )
    3.1. WP_Query (таксономии, глубина, флаги) → ID записей
-   3.2. MetaRepository::get_by_post_ids( $ids ) → метаданные одним запросом
-   3.3. Слияние: posts + meta → массив объектов
-4. Renderer::render( $items, $args ) → XML
-5. Сохранение в транзиент
-6. Отдача
+   3.2. MetaRepository::get_by_post_ids( $ids ) → метаданные
+        одним запросом
+   3.3. ImageExtractor::extract( $post_id, $config ) → image_*
+   3.4. wp_get_post_terms( $post_id ) → terms
+        (если include_terms = true)
+   3.5. HtmlSanitizer::sanitize( $post_content, $allowed_html )
+        для content — на границе с WP
+   3.6. Слияние: posts + meta + image + terms → массив $raw
+4. ContentNormalizer::normalize( $raw, $config ) для каждого
+   элемента → массив нормализованных items
+5. Renderer::render( $items, $args ) → XML
+6. Сохранение в транзиент
+7. Отдача
 ```
 
 `Collector` — единственный класс, который знает, **как получить данные**.
-`Renderer` — единственный, кто знает, **как их отформатировать**.
+`ContentNormalizer` — единственный, кто знает, **как привести их к общему
+виду** (ADR-ARCH-0002). `Renderer` — единственный, кто знает,
+**как их отформатировать**.
 
 ### Единый сборщик
 
 `Collector::collect( array $args ): array`
 
-Аргументы: `depth_hours`, `taxonomy_include`, `taxonomy_exclude`, `limit`.
+Аргументы:
+
+| Ключ | Тип | Назначение |
+| --- | --- | --- |
+| `depth_hours` | int | Глубина по `date_query` |
+| `taxonomy_include` | array | `tax_query` с `operator = IN` |
+| `taxonomy_exclude` | array | `tax_query` с `operator = NOT IN` |
+| `limit` | int | Верхняя граница выборки |
+| `include_terms` | bool | Тянуть ли terms в `$raw` |
+
+`include_terms` — проксируется из `get_normalization_config()`
+(ADR-ARCH-0002). Если рендереру terms не нужны (например, generic RSS
+без рубрик), `Collector` не делает `wp_get_post_terms()` на каждую
+запись.
 
 Шаги:
 
@@ -116,7 +163,11 @@ news-feed-factory/
 3. Если ID пусто — возврат пустого массива.
 4. `MetaRepository::get_by_post_ids( $ids )` — один SQL-запрос через
    `$wpdb->prepare` с `IN (...)`. При необходимости — chunking по 500 ID.
-5. Слияние и возврат.
+5. Для каждой записи: `ImageExtractor::extract()`; если
+   `include_terms = true` — `wp_get_post_terms()` для нужных таксономий.
+6. `HtmlSanitizer::sanitize( $post_content, $allowed_html )` — контент
+   сразу sanitized, чтобы `ContentNormalizer` оставался без WP-зависимостей.
+7. Слияние и возврат массива `$raw`.
 
 **Обоснование:** один запрос к кастомной таблице вместо N+1; отключение
 `update_post_meta_cache` и `update_post_term_cache` — не тянем лишнее.
@@ -132,8 +183,8 @@ TTL — из настроек (1–5 минут, по умолчанию 5).
 
 Инвалидация — на хуках `save_post`, `deleted_post`, `set_object_terms`:
 удаление всех транзиентов с префиксом `nwff_feed_` через
-`$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_nwff_feed_%'" )`
-(и `_transient_timeout_`).
+`TransientCache::delete_by_prefix()` (см. реализацию — прямой SQL по
+`wp_options`).
 
 **Обоснование:** сброс по префиксу дешевле, чем вычисление затронутых ключей,
 а частота изменений на новостном сайте — выше, чем частота запросов лент.
@@ -205,7 +256,8 @@ interface RendererInterface {
 
 **Общий чекбокс:**
 
-- «Отдавать в ленты» (default: on).
+- «Отдавать в ленты» (default: on). Сохраняется в колонку
+  `exclude_from_feeds` инвертированно: checked → `0`, unchecked → `1`.
 
 **Точки расширения:** рендерер может добавить свои чекбоксы через фильтр
 `nwff_post_meta_fields`. Например, Дзен может добавить «Публиковать в канал».
@@ -223,12 +275,22 @@ interface RendererInterface {
 ### Тестирование
 
 Соответствие ADR-PROC-0001: тест до фикса, тест остаётся.
+Bootstrap-файлы — по ADR-PROC-0004.
 
-- **Unit:** `Collector` (нормализация аргументов), `TransientCache` (ключи),
-  `MetaRepository` (SQL-генерация через моки `$wpdb`).
-- **Integration:** `WP_Query` + реальная БД (wp-env или test suite
-  WordPress). Помечаются `@group integration`, исключены из локального
-  прогона.
+- **Unit (`tests/bootstrap-unit.php`, без WP):**
+  - `Collector` — нормализация аргументов.
+  - `TransientCache` — построение ключа.
+  - `MetaRepository` — генерация SQL (через моки `$wpdb`).
+  - `Normalize/` — `Truncator`, `HtmlSanitizer::to_plain`,
+    `ContentNormalizer` (см. ADR-ARCH-0002).
+  - `Render/` — `GenreResolver`, `RendererInterface` (рефлексия).
+- **Integration (`tests/bootstrap-integration.php`, WP test suite):**
+  - `WP_Query` + реальная БД.
+  - `HtmlSanitizer::sanitize`, `ImageExtractor` (нужны `wp_kses`
+    и attachment).
+  - `MetaRepository` с реальной таблицей.
+  - Помечаются `@group integration`, исключены из локального
+    `composer check`.
 - **Framework:** PHPUnit. Конфиг — `phpunit.xml.dist`.
 
 ## Последствия
@@ -237,6 +299,7 @@ interface RendererInterface {
 
 - Ядро покрыто одним ADR — новые рендереры добавляются без переделок.
 - Один сборщик — один источник правды для данных.
+- Явный слой нормализации (ADR-ARCH-0002) — рендеры тонкие.
 - Кастомная таблица — контроль над схемой и очисткой.
 - Интерфейс рендерера — точки расширения для Google и Дзена без правки ядра.
 - Точки расширения (фильтры) позволяют рендерерам добавлять поля, не трогая
@@ -272,19 +335,24 @@ interface RendererInterface {
 - **Отдельная страница настроек на каждый формат.** Отклонено: один
   экран проще для контентщиков, меньше опций — меньше ошибок.
 - **Логика жанра в ядре.** Отклонено: жанр — специфика Яндекса, вынесена в
-  `ADR-ARCH-0002`.
+  `ADR-ARCH-0003`.
 - **Хранить настройки как отдельные опции (одна опция = одно поле).**
   Отклонено: один контейнер `nwff_settings` — меньше запросов к БД.
 - **Поле `feed_type` в ядре.** Отклонено: ядро не знает о конкретных
   форматах; специфичные поля добавляет рендерер.
+- **Колонка `include_in_feeds`.** Отклонено: default `1` в схеме
+  неудобен при `ALTER TABLE` и при миграциях; инверсия — в UI.
 
 ## Ссылки
 
 - **Зависит от:** ADR-PRODUCT-0001 (продукт News Feed Factory),
   ADR-PROC-0001 (рабочий цикл), ADR-PROC-0002 (документация и ADR).
-- **Уточняется в:** ADR-ARCH-0002 (нормализация контента), ADR-ARCH-0003 (рендерер Яндекса),
-  ADR-ARCH-0004 (рендерер Google, TBD), ADR-ARCH-0005 (рендерер Дзена, TBD).
-- **Связано с:** ADR-PROC-0003 (git-workflow).
+- **Уточняется в:** ADR-ARCH-0002 (нормализация контента),
+  ADR-ARCH-0003 (рендерер Яндекса), ADR-ARCH-0004 (рендерер Google, TBD),
+  ADR-ARCH-0005 (рендерер Дзена, TBD).
+- **Связано с:** ADR-PROC-0003 (git-workflow),
+  ADR-PROC-0004 (раздельные bootstrap'ы),
+  ADR-PROC-0005 (запрет ABSPATH-guard в `src/`).
 
 ## Открытые вопросы
 
@@ -302,3 +370,6 @@ interface RendererInterface {
 - **Telemetry/логирование:** куда писать ошибки сборщика? Пока — в
   `error_log` через `wp_trigger_error`. Отдельная настройка логов —
   когда появится боль.
+- **`include_terms` для generic RSS:** нужен ли рендер без terms вообще,
+  или terms всегда есть в фиде? Пока `Collector` уважает флаг из
+  `get_normalization_config()` — рендер сам решает.
