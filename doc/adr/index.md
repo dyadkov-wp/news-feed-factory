@@ -36,6 +36,7 @@
 | [ADR-ARCH-0003](ADR-ARCH-0003-yandex-renderer.md) | Рендерер Яндекса | Proposed | 2026-10-02 | 2026-10-02 |
 | ADR-ARCH-0004 | Рендерер Google | TBD | — | — |
 | ADR-ARCH-0005 | Рендерер Дзена | TBD | — | — |
+| [ADR-ARCH-0006](ADR-ARCH-0006-renderer-settings.md) | Настройки и конфигурация рендеров | Proposed | 2026-10-14 | 2026-10-14 |
 
 ### PROC
 
