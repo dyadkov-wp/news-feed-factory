@@ -24,6 +24,11 @@ tests_add_filter(
 	'muplugins_loaded',
 	static function (): void {
 		require dirname( __DIR__ ) . '/news-feed-factory.php';
+
+		// Create the custom feed-meta table. Without this the table
+		// never exists in the test database: register_activation_hook
+		// does not fire when the plugin is loaded via tests_add_filter.
+		\NWFF\Install\Schema::activate();
 	}
 );
 
