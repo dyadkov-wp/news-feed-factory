@@ -3,6 +3,12 @@
 Generate news feeds in multiple formats (Yandex, Google, Dzen, generic RSS)
 from WordPress content.
 
+## Status
+
+`0.1.0-dev`. In active development. The Yandex renderer is the
+current focus (ADR-ARCH-0003); Google, Dzen and generic RSS are
+planned (ADR-PRODUCT-0001).
+
 ## Purpose
 
 A news WordPress site needs export channels besides its web presentation:
