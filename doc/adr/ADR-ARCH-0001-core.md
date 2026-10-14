@@ -121,7 +121,8 @@ default `0`, и SQL-условие выборки в `Collector` остаётс�
         для content — на границе с WP
    3.6. Слияние: posts + meta + image + terms → массив $raw
 4. ContentNormalizer::normalize( $raw, $config ) для каждого
-   элемента → массив нормализованных items
+  элемента → массив нормализованных items (см. ADR-ARCH-0002:
+  форма $raw и нормализованного элемента, включая author)
 5. Renderer::render( $items, $args ) → XML
 6. Сохранение в транзиент
 7. Отдача
