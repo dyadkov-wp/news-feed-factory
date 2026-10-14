@@ -1,6 +1,6 @@
 # Индекс ADR — News Feed Factory
 
-**Обновлено:** 2026-10-02
+**Обновлено:** 2026-10-14
 
 ## Типы ADR
 
@@ -31,7 +31,7 @@
 
 | ID | Название | Статус | Создано | Обновлено |
 | --- | --- | --- | --- | --- |
-| [ADR-ARCH-0001](ADR-ARCH-0001-core.md) | Ядро News Feed Factory | Proposed | 2026-10-02 | 2026-10-02 |
+| [ADR-ARCH-0001](ADR-ARCH-0001-core.md) | Ядро News Feed Factory | Proposed | 2026-10-02 | 2026-10-14 |
 | [ADR-ARCH-0002](ADR-ARCH-0002-content-normalization.md) | Нормализация контента | Proposed | 2026-10-02 | 2026-10-02 |
 | [ADR-ARCH-0003](ADR-ARCH-0003-yandex-renderer.md) | Рендерер Яндекса | Proposed | 2026-10-02 | 2026-10-02 |
 | ADR-ARCH-0004 | Рендерер Google | TBD | — | — |
@@ -43,7 +43,7 @@
 | --- | --- | --- | --- | --- |
 | [ADR-PROC-0001](ADR-PROC-0001-workflow.md) | Рабочий цикл — проблема → тест → фикс | Proposed | 2026-10-02 | 2026-10-02 |
 | [ADR-PROC-0002](ADR-PROC-0002-docs-and-adr.md) | Документация проекта и ADR | Proposed | 2026-10-02 | 2026-10-02 |
-| [ADR-PROC-0003](ADR-PROC-0003-git-workflow.md) | Git-workflow | Proposed | 2026-10-02 | 2026-10-02 |
+| [ADR-PROC-0003](ADR-PROC-0003-git-workflow.md) | Git-workflow | Proposed | 2026-10-02 | 2026-10-14 |
 
 ## TBD
 

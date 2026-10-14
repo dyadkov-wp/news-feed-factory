@@ -331,6 +331,11 @@ chore: bump dev dependency
 One commit — one logical change. Do not mix refactoring with new
 functionality.
 
+Test-first commits may be split into two commits (failing test, then
+implementation) when the cycle is long. Mark the failing commit with an
+`Expected-Fail: yes` trailer in the commit body. See
+`doc/adr/ADR-PROC-0003-git-workflow.md` for the full rule.
+
 ### Branching
 
 Trunk-based. Commit directly to `main`. No feature branches except for
