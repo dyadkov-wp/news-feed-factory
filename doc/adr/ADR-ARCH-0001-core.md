@@ -141,15 +141,21 @@ default `0`, и SQL-условие выборки в `Collector` остаётс�
 | Ключ | Тип | Назначение |
 | --- | --- | --- |
 | `depth_hours` | int | Глубина по `date_query` |
+| `limit` | int | Верхняя граница выборки; `0` — без лимита |
 | `taxonomy_include` | array | `tax_query` с `operator = IN` |
 | `taxonomy_exclude` | array | `tax_query` с `operator = NOT IN` |
-| `limit` | int | Верхняя граница выборки |
-| `include_terms` | bool | Тянуть ли terms в `$raw` |
+| `normalization_config` | array | Из `RendererInterface::get_normalization_config()`; используется для `allowed_html`, `include_terms`, `image_min_*` |
 
-`include_terms` — проксируется из `get_normalization_config()`
-(ADR-ARCH-0002). Если рендереру terms не нужны (например, generic RSS
-без рубрик), `Collector` не делает `wp_get_post_terms()` на каждую
-запись.
+`taxonomy_include` / `taxonomy_exclude` — карта `taxonomy => term_ids`,
+например `[ 'category' => [ 12, 15 ], 'post_tag' => [ 100 ] ]`.
+`Collector` сортирует карту по ключу и ID перед запросом — чтобы
+одинаковая семантика давала одинаковый cache-ключ.
+
+`normalization_config` — единый блок. `Collector` извлекает из него
+`allowed_html` (для `HtmlSanitizer::sanitize`), `include_terms` (тянуть
+ли terms), `image_min_width` / `image_min_height` (для
+`ImageExtractor`). Значения по умолчанию берёт `ContentNormalizer`,
+не `Collector`.
 
 Шаги:
 
