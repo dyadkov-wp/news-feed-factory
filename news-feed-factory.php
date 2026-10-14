@@ -59,3 +59,9 @@ spl_autoload_register(
 		}
 	}
 );
+add_action(
+	'plugins_loaded',
+	static function (): void {
+		Plugin::init();
+	}
+);
