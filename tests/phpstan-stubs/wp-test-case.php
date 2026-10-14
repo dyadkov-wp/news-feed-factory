@@ -58,6 +58,21 @@ if ( ! class_exists( 'WP_UnitTest_Factory_For_Term' ) ) {
 	}
 }
 
+if ( ! class_exists( 'WP_UnitTest_Factory_For_User' ) ) {
+	/**
+	 * Stub for the user factory.
+	 */
+	class WP_UnitTest_Factory_For_User {
+		/**
+		 * @param array<string, mixed> $args User args.
+		 * @return int
+		 */
+		public function create( array $args = array() ): int {
+			return 0;
+		}
+	}
+}
+
 if ( ! class_exists( 'WP_UnitTest_Factory' ) ) {
 	/**
 	 * Stub for the factory container.
@@ -85,12 +100,20 @@ if ( ! class_exists( 'WP_UnitTest_Factory' ) ) {
 		public $term;
 
 		/**
+		 * User factory.
+		 *
+		 * @var WP_UnitTest_Factory_For_User
+		 */
+		public $user;
+
+		/**
 		 * Initialise sub-factories.
 		 */
 		public function __construct() {
 			$this->post       = new WP_UnitTest_Factory_For_Post();
 			$this->attachment = new WP_UnitTest_Factory_For_Attachment();
 			$this->term       = new WP_UnitTest_Factory_For_Term();
+			$this->user       = new WP_UnitTest_Factory_For_User();
 		}
 	}
 }

@@ -100,6 +100,7 @@ final class ContentNormalizerTest extends TestCase {
 		$this->assertNull( $result['image_width'] );
 		$this->assertNull( $result['image_height'] );
 		$this->assertSame( array(), $result['terms'] );
+		$this->assertSame( '', $result['author'] );
 	}
 
 	/**
@@ -424,6 +425,34 @@ final class ContentNormalizerTest extends TestCase {
 		$this->assertNull( $result['image_url'] );
 		$this->assertNull( $result['image_width'] );
 		$this->assertNull( $result['image_height'] );
+	}
+
+	/**
+	 * Author is preserved when present.
+	 *
+	 * @return void
+	 */
+	public function test_author_preserved(): void {
+		$result = $this->normalizer->normalize(
+			$this->raw( array( 'author' => 'Иван Иванов' ) ),
+			$this->config()
+		);
+
+		$this->assertSame( 'Иван Иванов', $result['author'] );
+	}
+
+	/**
+	 * Missing author defaults to an empty string.
+	 *
+	 * @return void
+	 */
+	public function test_missing_author_defaults_to_empty_string(): void {
+		$raw = $this->raw();
+		unset( $raw['author'] );
+
+		$result = $this->normalizer->normalize( $raw, $this->config() );
+
+		$this->assertSame( '', $result['author'] );
 	}
 
 	/**

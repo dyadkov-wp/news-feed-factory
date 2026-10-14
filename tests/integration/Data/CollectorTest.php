@@ -170,7 +170,7 @@ final class CollectorTest extends WP_UnitTestCase {
 		$this->assertCount( 1, $result );
 		$item = $result[0];
 
-		foreach ( array( 'id', 'link', 'title', 'content', 'excerpt', 'published', 'image_url', 'image_width', 'image_height', 'terms' ) as $key ) {
+		foreach ( array( 'id', 'link', 'title', 'content', 'excerpt', 'published', 'author', 'image_url', 'image_width', 'image_height', 'terms' ) as $key ) {
 			$this->assertArrayHasKey( $key, $item, "Missing key: {$key}" );
 		}
 
@@ -180,6 +180,7 @@ final class CollectorTest extends WP_UnitTestCase {
 		$this->assertIsString( $item['content'] );
 		$this->assertIsString( $item['excerpt'] );
 		$this->assertIsString( $item['published'] );
+		$this->assertIsString( $item['author'] );
 		$this->assertNull( $item['image_url'] );
 		$this->assertNull( $item['image_width'] );
 		$this->assertNull( $item['image_height'] );
@@ -442,5 +443,19 @@ final class CollectorTest extends WP_UnitTestCase {
 		$this->assertSame( 'My Title', $item['title'] );
 		$this->assertSame( get_permalink( $post_id ), $item['link'] );
 		$this->assertMatchesRegularExpression( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $item['published'] );
+	}
+
+	/**
+	 * Author is populated from the post's author display name.
+	 *
+	 * @return void
+	 */
+	public function test_author_populated_from_post_author(): void {
+		$user_id = (int) self::factory()->user->create( array( 'display_name' => 'Иван Иванов' ) );
+		$this->make_post( 1, array( 'post_author' => $user_id ) );
+
+		$result = $this->collector->collect( $this->args() );
+
+		$this->assertSame( 'Иван Иванов', $result[0]['author'] );
 	}
 }
