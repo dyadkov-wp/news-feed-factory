@@ -108,8 +108,10 @@ default `0`, и SQL-условие выборки в `Collector` остаётс�
 ### Поток данных
 
 ```
-1. Запрос к /feed/{slug}
+1. Запрос к /{feed_slug}/{renderer_slug}.xml
+   (query var nwff_feed_slug, значение = renderer slug)
 2. Проверка транзиента по ключу
+   (nwff_feed_ + md5 от нормализованных args)
 3. Если промах — Collector::collect( $args )
    3.1. WP_Query (таксономии, глубина, флаги) → ID записей
    3.2. MetaRepository::get_by_post_ids( $ids ) → метаданные
@@ -240,8 +242,20 @@ interface RendererInterface {
 `/feed/yandex.xml`, `/feed/google.xml`, `/feed/dzen.xml`.
 
 Отдача — на хуке `template_redirect` (не через `WP_Query`, чтобы не тянуть
-тему). Заголовок `Content-Type` — из `RendererInterface`. Если лента
-выключена — 404.
+тему). `Endpoint::serve()` возвращает `['body' => string, 'content_type'
+=> string]` или `null`; `Plugin::handle_feed_request()` ставит заголовок,
+печатает тело и завершает запрос. Логика не эхоит и не вызывает `exit`
+сама — HTTP-обвязка в `Plugin`.
+
+Рендерер-слаг берётся из query var `nwff_feed_slug`. Базовый slug — из
+`nwff_settings['feed_slug']`, дефолт `feed`.
+
+Если слаг неизвестен — 404. Проверка «лента выключена» появится вместе
+с настройками рендерера (этап Settings).
+
+Кэш-ключ — `nwff_feed_` + `md5( wp_json_encode( $normalized_args ) )`,
+где `$normalized_args` содержит слаг рендерера, `depth_hours`, `limit`
+и таксономии, отсортированные по ключу и ID.
 
 Правила перезаписи сбрасываются при активации (`flush_rewrite_rules`).
 
