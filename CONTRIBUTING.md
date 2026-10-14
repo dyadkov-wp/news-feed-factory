@@ -170,18 +170,22 @@ Short description rules:
 - **Does not change the case of an identifier.** Rephrase so the
   identifier is not the first word.
 
-  Wrong:
-
-  > `taxonomy_include restricts to matching terms.`
-
-  Right:
-
-  > `Restricts to matching terms for taxonomy_include.`
-
-  Same for `include_terms`, `limit`, `content`, `image_url`,
-  `exclude_from_feeds`. Prefer a verb (`Caps`, `Sanitizes`,
-  `Populates`, `Yields`, `Restricts`, `Removes`) or a neutral phrase
-  (`When include_terms is false, ...`).
+  The rule applies whenever the identifier would otherwise be the
+  first word of the sentence. If the natural English sentence starts
+  with the identifier, rephrase to start with a verb:
+  
+  | Identifier | Wrong | Right |
+  | --- | --- | --- |
+  | `taxonomy_include` | `taxonomy_include restricts to ...` | `Restricts to ... for taxonomy_include.` |
+  | `include_terms` | `include_terms = false yields ...` | `Yields empty terms when include_terms is false.` |
+  | `yandex:full-text` | `yandex:full-text carries ...` | `Carries the sanitized content in yandex:full-text CDATA.` |
+  | `category` | `category is taken from ...` | `Takes category from the first category term.` |
+  | `author` | `author is omitted when empty.` | `Omits author when empty.` |
+  | `description` | `description is omitted when ...` | `Omits description when excerpt is empty.` |
+  
+  Verbs that work well: `Caps`, `Sanitizes`, `Populates`, `Yields`,
+  `Restricts`, `Removes`, `Takes`, `Omits`, `Emits`, `Carries`,
+  `Converts`, `Builds`.
 
 Tag conventions:
 
@@ -202,6 +206,22 @@ if ( ! $post instanceof \WP_Post ) { ... }
 ```
 
 No `ABSPATH` guard on top-level in `src/` — see ADR-PROC-0005.
+
+### SimpleXML and camelCase properties
+
+SimpleXML exposes XML element names as PHP properties. RSS/Atom
+elements such as `pubDate`, `lastBuildDate`, `guid`, `enclosure`
+are camelCase, and WPCS's
+`WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase`
+flags them. Add a scoped ignore at the point of access:
+
+```php
+// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- SimpleXML exposes RSS element pubDate as a camelCase property.
+$pub_date = (string) $item->pubDate;
+```
+
+Alternative: use `$item->xpath( 'pubDate' )` if the element is
+reused in many places. For a single access, the ignore is clearer.
 
 ### SQL
 
