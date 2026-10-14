@@ -103,6 +103,7 @@ final class ContentNormalizer {
 			'content'      => $content,
 			'excerpt'      => $excerpt,
 			'published'    => $published,
+			'author'       => isset( $raw['author'] ) && is_string( $raw['author'] ) ? $raw['author'] : '',
 			'image_url'    => isset( $raw['image_url'] ) && is_string( $raw['image_url'] ) ? $raw['image_url'] : null,
 			'image_width'  => isset( $raw['image_width'] ) && is_int( $raw['image_width'] ) ? $raw['image_width'] : null,
 			'image_height' => isset( $raw['image_height'] ) && is_int( $raw['image_height'] ) ? $raw['image_height'] : null,

@@ -252,6 +252,7 @@ final class Collector {
 			'content'      => $this->html_sanitizer->sanitize( (string) $post->post_content, $allowed_html ),
 			'excerpt'      => (string) $post->post_excerpt,
 			'published'    => (string) $post->post_date_gmt,
+			'author'       => (string) get_the_author_meta( 'display_name', (int) $post->post_author ),
 			'image_url'    => $image['url'] ?? null,
 			'image_width'  => $image['width'] ?? null,
 			'image_height' => $image['height'] ?? null,
