@@ -73,8 +73,8 @@ final class CollectorTest extends WP_UnitTestCase {
 	/**
 	 * Create a published post with the given age in hours.
 	 *
-	 * @param int   $hours_ago Age in hours.
-	 * @param array $extra     Extra post args.
+	 * @param int                  $hours_ago Age in hours.
+	 * @param array<string, mixed> $extra     Extra post args.
 	 * @return int Post ID.
 	 */
 	private function make_post( int $hours_ago = 0, array $extra = array() ): int {
@@ -132,7 +132,7 @@ final class CollectorTest extends WP_UnitTestCase {
 		$result = $this->collector->collect( $this->args() );
 
 		$this->assertCount( 1, $result );
-		$this->assertSame( $post_id, (int) $result[0]['_post_id'] ?? 0 );
+		$this->assertSame( get_permalink( $post_id ), $result[0]['link'] );
 	}
 
 	/**
@@ -223,8 +223,8 @@ final class CollectorTest extends WP_UnitTestCase {
 		);
 
 		$this->assertCount( 1, $result );
-		$this->assertSame( $included, (int) $result[0]['_post_id'] );
-		$this->assertNotSame( $excluded, (int) $result[0]['_post_id'] );
+		$this->assertSame( get_permalink( $included ), $result[0]['link'] );
+		$this->assertNotSame( get_permalink( $excluded ), $result[0]['link'] );
 	}
 
 	/**
@@ -249,7 +249,7 @@ final class CollectorTest extends WP_UnitTestCase {
 		);
 
 		$this->assertCount( 1, $result );
-		$this->assertSame( $kept, (int) $result[0]['_post_id'] );
+		$this->assertSame( get_permalink( $kept ), $result[0]['link'] );
 	}
 
 	/**
@@ -296,8 +296,8 @@ final class CollectorTest extends WP_UnitTestCase {
 		$result_b = $this->collector->collect( $args_b );
 
 		$this->assertSame(
-			array_column( $result_a, '_post_id' ),
-			array_column( $result_b, '_post_id' )
+			array_column( $result_a, 'link' ),
+			array_column( $result_b, 'link' )
 		);
 	}
 
@@ -314,7 +314,7 @@ final class CollectorTest extends WP_UnitTestCase {
 		$result = $this->collector->collect( $this->args() );
 
 		$this->assertCount( 1, $result );
-		$this->assertSame( $kept, (int) $result[0]['_post_id'] );
+		$this->assertSame( get_permalink( $kept ), $result[0]['link'] );
 	}
 
 	/**
