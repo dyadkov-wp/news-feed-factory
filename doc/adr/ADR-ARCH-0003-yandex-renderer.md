@@ -146,7 +146,7 @@ public function get_normalization_config(): array {
 | `link` | нормализованный `link` | да | всегда |
 | `pubDate` | нормализованный `published` | да | всегда |
 | `yandex:full-text` | нормализованный `content` | да | всегда (в CDATA) |
-| `author` | `get_the_author_meta('display_name')` | нет | если автор есть |
+| `author` | нормализованный `author` (из `$raw`, см. ADR-ARCH-0002) | нет | если `author` не пуст |
 | `category` | первая рубрика из `terms` | нет | если рубрика есть |
 | `description` | нормализованный `excerpt` | нет | если `excerpt` не пуст |
 | `yandex:genre` | `GenreResolver` | нет | всегда (даже `message`) |
@@ -175,8 +175,13 @@ public function get_normalization_config(): array {
 - Namespace `yandex` и `media` — проще в шаблонной строке.
 - `yandex:full-text` требует CDATA — `DOMDocument` работает с
   ним неудобно.
-- Экранирование: для текстовых полей — `esc_html`, для URL —
-  `esc_url`, для CDATA — проверка на `]]>` (замена на `]]]]><![CDATA[>`).
+- Экранирование: для всех текстовых полей и URL —
+  `htmlspecialchars( $text, ENT_QUOTES | ENT_XML1, 'UTF-8' )`.
+  Это XML-эскейпер, а не HTML5-эскейпер: `esc_html`/`esc_url`
+  из WP рассчитаны на HTML-вывод в браузере и требуют
+  загруженного WordPress, что делает рендерер неюнит-тестируемым
+  (ADR-PROC-0004, ADR-PROC-0005). Для CDATA — замена `]]>` на
+  `]]]]><![CDATA[>`.
 - Контроль над форматом — точно как в требовании Яндекса.
 
 Отдельный класс `RssWriter` не вводим — он появится, когда
