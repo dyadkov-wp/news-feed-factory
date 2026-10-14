@@ -79,12 +79,13 @@ public function get_normalization_config(): array;
 
 ```php
 [
-    'id'             => string,             // guid
+    'id'             => string,             // get_permalink()
     'link'           => string,             // URL
     'title'          => string,             // plain, decoded
     'content'        => string,             // sanitized HTML, обрезанный
     'excerpt'        => string,             // plain, decoded, обрезанный
     'published'      => \DateTimeImmutable, // в UTC
+    'author'         => string,             // display_name, '' если нет
     'image_url'      => ?string,            // null, если нет
     'image_width'    => ?int,
     'image_height'   => ?int,
@@ -330,12 +331,13 @@ ADR.
 
 ```php
 [
-    'id'           => string,       // guid
+    'id'           => string,       // get_permalink()
     'link'         => string,
     'title'        => string,       // rendered HTML (entities допустимы)
     'content'      => string,       // УЖЕ sanitized HTML (Collector применил wp_kses)
     'excerpt'      => string,       // rendered HTML (raw)
     'published'    => string,       // MySQL datetime (post_date_gmt)
+    'author'       => string,       // display_name, '' если нет
     'image_url'    => ?string,      // результат ImageExtractor
     'image_width'  => ?int,
     'image_height' => ?int,
@@ -360,14 +362,16 @@ ADR.
 2. **Дата.** `published`: пусто, `'0000-00-00 00:00:00'`, `null` или не
    парсится `DateTimeImmutable` → `null`. Иначе —
    `setTimezone( new DateTimeZone( 'UTC' ) )`.
-3. **Заголовок.** `html_entity_decode` + trim.
-4. **`content`.** Переносится как есть (уже sanitized в `Collector`).
-5. **`excerpt`.** `HtmlSanitizer::to_plain()`, затем
+3. **Автор.** Переносится как есть из `$raw`. Пустая строка,
+   если поля нет. Форматирование (эскейпинг в XML) — в рендерере.
+4. **Заголовок.** `html_entity_decode` + trim.
+5. **`content`.** Переносится как есть (уже sanitized в `Collector`).
+6. **`excerpt`.** `HtmlSanitizer::to_plain()`, затем
    `Truncator::truncate()`, если `truncate_mode !== 'none'`.
-6. **`image_*`.** Переносятся как есть из `$raw`. Пороги
+7. **`image_*`.** Переносятся как есть из `$raw`. Пороги
    `image_min_width` / `image_min_height` уже применил `ImageExtractor`
    в `Collector` — повторная проверка не делается.
-7. **`terms`.** Если `include_terms = false` — `[]`. Иначе — как пришло
+8. **`terms`.** Если `include_terms = false` — `[]`. Иначе — как пришло
    из `Collector` (порядок: сначала категории по `name`, потом теги по
    `name`).
 
