@@ -65,3 +65,5 @@ add_action(
 		Plugin::init();
 	}
 );
+
+register_activation_hook( __FILE__, array( Plugin::class, 'activate' ) );

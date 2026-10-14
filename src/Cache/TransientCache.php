@@ -19,6 +19,14 @@ namespace NWFF\Cache;
 final class TransientCache {
 
 	/**
+	 * Prefix shared by all feed cache keys.
+	 *
+	 * Referenced by both the producer (Endpoint) and the invalidator
+	 * (Plugin) so the two never drift.
+	 */
+	public const FEED_PREFIX = 'nwff_feed_';
+
+	/**
 	 * Retrieves a cached value.
 	 *
 	 * @param string $key Cache key.
@@ -57,7 +65,7 @@ final class TransientCache {
 	 * not support deletion by prefix. This is the only reliable way
 	 * to invalidate all feed caches after a post or term change.
 	 *
-	 * @param string $prefix Key prefix to match, without the plugin prefix.
+	 * @param string $prefix Transient-name prefix, as it appears after "_transient_". Example: "nwff_feed_".
 	 * @return void
 	 */
 	public function delete_by_prefix( string $prefix ): void {

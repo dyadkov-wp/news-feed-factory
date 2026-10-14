@@ -22,8 +22,7 @@ use NWFF\Render\RendererInterface;
  */
 final class Endpoint {
 
-	private const CACHE_PREFIX = 'nwff_feed_';
-	private const CACHE_TTL    = 300;
+	private const CACHE_TTL = 300;
 
 	private const DEFAULT_DEPTH_HOURS = 4;
 
@@ -176,7 +175,7 @@ final class Endpoint {
 			$encoded = '';
 		}
 
-		return self::CACHE_PREFIX . md5( $encoded );
+		return TransientCache::FEED_PREFIX . md5( $encoded );
 	}
 
 	/**

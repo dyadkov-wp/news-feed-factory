@@ -79,6 +79,23 @@ final class MetaRepository {
 	}
 
 	/**
+	 * Deletes the metadata row for the given post ID.
+	 *
+	 * Called on deleted_post; missing rows are a no-op.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return void
+	 */
+	public function delete_by_post_id( int $post_id ): void {
+		global $wpdb;
+
+		$table = $wpdb->prefix . self::TABLE_SUFFIX;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom table; no WP API for a single-row delete.
+		$wpdb->delete( $table, array( 'post_id' => $post_id ), array( '%d' ) );
+	}
+
+	/**
 	 * Filter input to unique positive integers, preserving order.
 	 *
 	 * @param array<int, mixed> $post_ids Raw input.
