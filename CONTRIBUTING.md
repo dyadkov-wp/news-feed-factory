@@ -119,11 +119,132 @@ other setups, override via environment variables or a local
 The project follows WordPress Coding Standards.
 
 - Tabs for indentation, spaces for alignment inside lines.
+- One class/interface/trait per file. Filename matches the class name
+  (PSR-4).
+- Consecutive assignments align their `=` to the longest variable
+  name in the block. If alignment looks noisy, restructure the code
+  instead of padding by hand.
+- Multi-line arrays have a trailing comma on the last element.
+- Wrap PHP code at ~100 columns.
 - Yoda conditions: `if ( 1 === $x )`.
 - All output escaped: `esc_html`, `esc_attr`, `esc_url`.
 - All input sanitized.
 - Text domain: `news-feed-factory`.
 - Comments and docblocks in English.
+
+### File header
+
+Every PHP file starts with:
+
+```php
+<?php
+/**
+ * Short description of what this file is.
+ *
+ * @package NewsFeedFactory
+ */
+
+declare( strict_types=1 );
+
+namespace NWFF\...;
+```
+
+`declare( strict_types=1 )` is mandatory. Use statements are
+alphabetically sorted.
+
+### Type declarations
+
+Every parameter, property and return value has a PHP type. Use
+PHPDoc shapes (`array<string, mixed>`, `array{url: string, width:
+int}`) when PHP types cannot express the structure.
+
+### Docblocks
+
+Every class, interface, method, property and constant gets a
+docblock.
+
+Short description rules:
+
+- Starts with a capital letter.
+- Ends with a period.
+- **Does not change the case of an identifier.** Rephrase so the
+  identifier is not the first word.
+
+  Wrong:
+
+  > `taxonomy_include restricts to matching terms.`
+
+  Right:
+
+  > `Restricts to matching terms for taxonomy_include.`
+
+  Same for `include_terms`, `limit`, `content`, `image_url`,
+  `exclude_from_feeds`. Prefer a verb (`Caps`, `Sanitizes`,
+  `Populates`, `Yields`, `Restricts`, `Removes`) or a neutral phrase
+  (`When include_terms is false, ...`).
+
+Tag conventions:
+
+- `@param type $name Description.`
+- `@return type Description.`
+- `@var type` on properties.
+- `@throws` when a method can throw.
+
+All tag descriptions end with a period.
+
+### PHP classes in `src/`
+
+Fully qualified, no `use`:
+
+```php
+$query = new \WP_Query( $args );
+if ( ! $post instanceof \WP_Post ) { ... }
+```
+
+No `ABSPATH` guard on top-level in `src/` — see ADR-PROC-0005.
+
+### SQL
+
+- All values go through `$wpdb->prepare()` with `%d`, `%s`, `%f`.
+- Table names come from `$wpdb->prefix`. Never hardcode.
+- Custom tables (`nwff_feed_meta`) have no WP API. Direct queries
+  are allowed with a scoped ignore.
+- When SQL is built in a variable and then passed through
+  `prepare()`, WPCS's `NotPrepared` sniff fires anyway. Add a
+  scoped ignore above the `prepare()` call.
+- When calling `$wpdb->get_results()` / `insert()` / `update()`
+  directly, add `DirectQuery` and `NoCaching` ignores.
+- **Reasons are mandatory.** `phpcs:ignore Rule -- reason.`
+  Never bare `phpcs:ignore Rule.`
+
+Examples:
+
+```php
+// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql is built above with %d placeholders, one per ID, and passed through $wpdb->prepare() on the next line.
+$prepared = $wpdb->prepare( $sql, ...$chunk );
+
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom table; result caching lives in TransientCache upstream.
+$rows = $wpdb->get_results( $prepared );
+```
+
+### WP globals
+
+Never assign to WP globals in `src/`. In tests, wrap the assignment
+in a single private helper with one scoped ignore:
+
+```php
+private function install_wpdb( object $wpdb ): void {
+    // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- test double; see method docblock.
+    $GLOBALS['wpdb'] = $wpdb;
+}
+```
+
+### When PHPCS disagrees
+
+WPCS is authoritative. If a sniff is wrong for this project, add a
+scoped ignore with a reason. Never use `phpcs:disable` at file level.
+If you fight the same sniff repeatedly, propose an exception in an
+ADR before working around it file-by-file.
 
 Run the linter before committing:
 
@@ -154,6 +275,23 @@ composer test               # all suites
 
 Unit tests must run fast. Integration tests are excluded from local
 runs by default.
+
+### Test doubles
+
+Test doubles (a fake `$wpdb`, a fake HTTP client, a spy) are named
+classes in their own files under `tests/unit/` or
+`tests/integration/`. Never use anonymous classes for doubles.
+
+Two reasons:
+
+- PHPUnit 9.6 accumulates anonymous class definitions across test
+  methods. Nine methods each defining their own double pushed the
+  suite into OOM (3.1 GB RSS, kernel kill) during PROC-0009.
+- WPCS forbids two class structures in one file
+  (`Generic.Files.OneObjectStructurePerFile.MultipleFound`).
+
+Naming: `FakeWpdb`, `FakeHttpClient`, `SpyRenderer`. Prefix signals
+the intent.
 
 ## Submitting changes
 
