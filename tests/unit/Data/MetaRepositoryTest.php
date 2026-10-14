@@ -257,4 +257,20 @@ final class MetaRepositoryTest extends TestCase {
 
 		$this->assertCount( 1, $wpdb->queries );
 	}
+	/**
+	 * Deletes a row by post ID with a single table-scoped call.
+	 *
+	 * @return void
+	 */
+	public function test_delete_by_post_id_uses_delete_with_where(): void {
+		$wpdb = $this->fake_wpdb();
+		$this->install_wpdb( $wpdb );
+
+		( new MetaRepository() )->delete_by_post_id( 42 );
+
+		$this->assertCount( 1, $wpdb->deletes );
+		$this->assertSame( 'wp_nwff_feed_meta', $wpdb->deletes[0]['table'] );
+		$this->assertSame( array( 'post_id' => 42 ), $wpdb->deletes[0]['where'] );
+		$this->assertSame( array( '%d' ), $wpdb->deletes[0]['format'] );
+	}
 }

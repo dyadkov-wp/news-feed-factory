@@ -53,6 +53,13 @@ final class FakeWpdb {
 	public array $prepare_args = array();
 
 	/**
+	 * Deletion calls captured by the double.
+	 *
+	 * @var array<int, array{table: string, where: array<string, mixed>, format: array<int, string>}>
+	 */
+	public array $deletes = array();
+
+	/**
 	 * Record placeholder arguments and return the SQL unchanged.
 	 *
 	 * The real wpdb::prepare() substitutes values into the SQL.
@@ -77,5 +84,22 @@ final class FakeWpdb {
 	public function get_results( string $sql ): array {
 		$this->queries[] = $sql;
 		return array_shift( $this->pages ) ?? array();
+	}
+
+	/**
+	 * Record a delete() call and return 1.
+	 *
+	 * @param string               $table  Table name.
+	 * @param array<string, mixed> $where  WHERE column => value pairs.
+	 * @param array<int, string>   $format Placeholder formats.
+	 * @return int Affected rows.
+	 */
+	public function delete( string $table, array $where, array $format ): int {
+		$this->deletes[] = array(
+			'table'  => $table,
+			'where'  => $where,
+			'format' => $format,
+		);
+		return 1;
 	}
 }
