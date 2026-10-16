@@ -61,9 +61,11 @@ final class TransientCache {
 	/**
 	 * Deletes all plugin transients whose key starts with a prefix.
 	 *
-	 * Uses a direct SQL query because the WordPress Options API does
-	 * not support deletion by prefix. This is the only reliable way
-	 * to invalidate all feed caches after a post or term change.
+	 * Goes through delete_transient() for every matching option so
+	 * the WordPress object cache is evicted alongside the database
+	 * row. A raw SQL DELETE leaves cached values in the 'transient'
+	 * cache group, and the next get_transient() returns stale data
+	 * until the cache expires.
 	 *
 	 * @param string $prefix Transient-name prefix, as it appears after "_transient_". Example: "nwff_feed_".
 	 * @return void
@@ -72,15 +74,18 @@ final class TransientCache {
 		global $wpdb;
 
 		$transient_prefix = $wpdb->esc_like( '_transient_' . $prefix ) . '%';
-		$timeout_prefix   = $wpdb->esc_like( '_transient_timeout_' . $prefix ) . '%';
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
-		$wpdb->query(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- Prefix scan has no Options API equivalent; the result feeds delete_transient(), which evicts the object cache.
+		$names = $wpdb->get_col(
 			$wpdb->prepare(
-				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
-				$transient_prefix,
-				$timeout_prefix
+				"SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+				$transient_prefix
 			)
 		);
+
+		foreach ( $names as $option_name ) {
+			$key = substr( (string) $option_name, strlen( '_transient_' ) );
+			delete_transient( $key );
+		}
 	}
 }
