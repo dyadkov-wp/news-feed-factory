@@ -273,4 +273,23 @@ final class MetaRepositoryTest extends TestCase {
 		$this->assertSame( array( 'post_id' => 42 ), $wpdb->deletes[0]['where'] );
 		$this->assertSame( array( '%d' ), $wpdb->deletes[0]['format'] );
 	}
+
+	/**
+	 * Deletes rows older than the given datetime.
+	 *
+	 * @return void
+	 */
+	public function test_delete_older_than_queries_by_threshold(): void {
+		$wpdb = $this->fake_wpdb();
+		$this->install_wpdb( $wpdb );
+
+		$threshold = '2026-09-16 12:00:00';
+		$deleted   = ( new MetaRepository() )->delete_older_than( $threshold );
+
+		$this->assertSame( 1, $deleted );
+		$this->assertCount( 1, $wpdb->query_calls );
+		$this->assertStringContainsString( 'DELETE FROM wp_nwff_feed_meta', $wpdb->query_calls[0] );
+		$this->assertStringContainsString( 'updated_at <', $wpdb->query_calls[0] );
+		$this->assertSame( array( $threshold ), $wpdb->prepare_args[0] );
+	}
 }

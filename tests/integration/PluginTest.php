@@ -302,4 +302,17 @@ final class PluginTest extends WP_UnitTestCase {
 			get_option( 'rewrite_rules' )
 		);
 	}
+
+	/**
+	 * Init registers the cron cleanup hook.
+	 *
+	 * @return void
+	 */
+	public function test_init_registers_cleanup_hook(): void {
+		Plugin::init();
+
+		$this->assertNotFalse(
+			has_action( 'nwff_cleanup_meta', array( \NWFF\Install\Cron::class, 'cleanup' ) )
+		);
+	}
 }

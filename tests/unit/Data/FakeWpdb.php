@@ -60,6 +60,13 @@ final class FakeWpdb {
 	public array $deletes = array();
 
 	/**
+	 * Calls captured by query(), in call order.
+	 *
+	 * @var array<int, string>
+	 */
+	public array $query_calls = array();
+
+	/**
 	 * Record placeholder arguments and return the SQL unchanged.
 	 *
 	 * The real wpdb::prepare() substitutes values into the SQL.
@@ -100,6 +107,21 @@ final class FakeWpdb {
 			'where'  => $where,
 			'format' => $format,
 		);
+		return 1;
+	}
+
+	/**
+	 * Record a query() call and return 1.
+	 *
+	 * The real wpdb::query() executes the statement. Unit tests
+	 * only need to observe the SQL and a non-false return, so the
+	 * double always reports one affected row.
+	 *
+	 * @param string $sql Prepared SQL.
+	 * @return int Affected rows.
+	 */
+	public function query( string $sql ): int {
+		$this->query_calls[] = $sql;
 		return 1;
 	}
 }
