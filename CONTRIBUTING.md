@@ -296,6 +296,16 @@ composer test               # all suites
 Unit tests must run fast. Integration tests are excluded from local
 runs by default.
 
+`composer check` runs lint, PHPStan and unit tests only. Integration
+tests are **not** part of it. After any change that adds or touches
+integration tests, run them explicitly before committing:
+```bash
+composer test:integration
+```
+Integration tests require the WordPress test suite and a live test
+database; skipping them locally is fine for pure unit work, but a
+green composer check alone does not prove a change is safe.
+
 ### Test doubles
 
 Test doubles (a fake `$wpdb`, a fake HTTP client, a spy) are named
@@ -345,10 +355,13 @@ large work that cannot be split into atomic commits.
 
 ```
 composer check
+composer test:integration
 ```
 
-Must be green. If it fails, fix in a new commit — do not amend
-published commits.
+Both must be green. If a change touched integration tests, run them
+separately — `composer check` does not cover them (see "Tests"). If
+either command fails, fix in a new commit — do not amend published
+commits.
 
 ### Pull requests
 
