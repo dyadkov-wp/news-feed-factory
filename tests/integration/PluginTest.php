@@ -315,4 +315,30 @@ final class PluginTest extends WP_UnitTestCase {
 			has_action( 'nwff_cleanup_meta', array( \NWFF\Install\Cron::class, 'cleanup' ) )
 		);
 	}
+
+	/**
+	 * Init registers the meta-box hook.
+	 *
+	 * @return void
+	 */
+	public function test_init_registers_meta_boxes_hook(): void {
+		Plugin::init();
+
+		$this->assertNotFalse(
+			has_action( 'add_meta_boxes', array( \NWFF\Admin\PostFlags::class, 'add_metabox' ) )
+		);
+	}
+
+	/**
+	 * Init registers the PostFlags save hook.
+	 *
+	 * @return void
+	 */
+	public function test_init_registers_post_flags_save_hook(): void {
+		Plugin::init();
+
+		$this->assertNotFalse(
+			has_action( 'save_post_post', array( \NWFF\Admin\PostFlags::class, 'save' ) )
+		);
+	}
 }

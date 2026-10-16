@@ -67,6 +67,13 @@ final class FakeWpdb {
 	public array $query_calls = array();
 
 	/**
+	 * Replace calls captured by the double.
+	 *
+	 * @var array<int, array{table: string, data: array<string, mixed>, format: array<int, string>}>
+	 */
+	public array $replaces = array();
+
+	/**
 	 * Record placeholder arguments and return the SQL unchanged.
 	 *
 	 * The real wpdb::prepare() substitutes values into the SQL.
@@ -122,6 +129,23 @@ final class FakeWpdb {
 	 */
 	public function query( string $sql ): int {
 		$this->query_calls[] = $sql;
+		return 1;
+	}
+
+	/**
+	 * Record a replace() call and return 1.
+	 *
+	 * @param string               $table  Table name.
+	 * @param array<string, mixed> $data   Column => value pairs.
+	 * @param array<int, string>   $format Placeholder formats.
+	 * @return int Affected rows.
+	 */
+	public function replace( string $table, array $data, array $format ): int {
+		$this->replaces[] = array(
+			'table'  => $table,
+			'data'   => $data,
+			'format' => $format,
+		);
 		return 1;
 	}
 }

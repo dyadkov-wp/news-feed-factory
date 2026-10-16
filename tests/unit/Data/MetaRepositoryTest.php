@@ -292,4 +292,40 @@ final class MetaRepositoryTest extends TestCase {
 		$this->assertStringContainsString( 'updated_at <', $wpdb->query_calls[0] );
 		$this->assertSame( array( $threshold ), $wpdb->prepare_args[0] );
 	}
+
+	/**
+	 * Save replaces the row with exclude = 1.
+	 *
+	 * @return void
+	 */
+	public function test_save_stores_exclude_true(): void {
+		$wpdb = $this->fake_wpdb();
+		$this->install_wpdb( $wpdb );
+
+		( new MetaRepository() )->save( 42, true );
+
+		$this->assertCount( 1, $wpdb->replaces );
+		$call = $wpdb->replaces[0];
+
+		$this->assertSame( 'wp_nwff_feed_meta', $call['table'] );
+		$this->assertSame( 42, $call['data']['post_id'] );
+		$this->assertSame( 1, $call['data']['exclude_from_feeds'] );
+		$this->assertArrayHasKey( 'updated_at', $call['data'] );
+		$this->assertSame( array( '%d', '%d', '%s' ), $call['format'] );
+	}
+
+	/**
+	 * Save replaces the row with exclude = 0.
+	 *
+	 * @return void
+	 */
+	public function test_save_stores_exclude_false(): void {
+		$wpdb = $this->fake_wpdb();
+		$this->install_wpdb( $wpdb );
+
+		( new MetaRepository() )->save( 7, false );
+
+		$this->assertCount( 1, $wpdb->replaces );
+		$this->assertSame( 0, $wpdb->replaces[0]['data']['exclude_from_feeds'] );
+	}
 }
