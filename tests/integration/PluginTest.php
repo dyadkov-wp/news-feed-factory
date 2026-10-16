@@ -231,4 +231,75 @@ final class PluginTest extends WP_UnitTestCase {
 
 		$this->assertSame( $first['yandex'], $second['yandex'] );
 	}
+	/**
+	 * Init registers the admin_menu settings-page hook.
+	 *
+	 * @return void
+	 */
+	public function test_init_registers_admin_menu_hook(): void {
+		Plugin::init();
+
+		$this->assertNotFalse(
+			has_action( 'admin_menu', array( Plugin::class, 'register_settings_page' ) )
+		);
+	}
+
+	/**
+	 * Init registers the settings-update hook.
+	 *
+	 * @return void
+	 */
+	public function test_init_registers_update_option_hook(): void {
+		Plugin::init();
+
+		$this->assertNotFalse(
+			has_action( 'update_option_nwff_settings', array( Plugin::class, 'on_settings_updated' ) )
+		);
+	}
+
+	/**
+	 * Updating feed_slug flushes rewrite rules.
+	 *
+	 * Seeds rewrite_rules with a sentinel, updates the feed slug,
+	 * and asserts the sentinel is gone — flush_rewrite_rules always
+	 * deletes the option.
+	 *
+	 * @return void
+	 */
+	public function test_settings_update_with_changed_slug_flushes(): void {
+		update_option( 'nwff_settings', array( 'core' => array( 'feed_slug' => 'old' ) ) );
+		update_option( 'rewrite_rules', array( 'sentinel' => 'sentinel' ) );
+
+		update_option( 'nwff_settings', array( 'core' => array( 'feed_slug' => 'new' ) ) );
+
+		$this->assertNotSame(
+			array( 'sentinel' => 'sentinel' ),
+			get_option( 'rewrite_rules' )
+		);
+	}
+
+	/**
+	 * Updating an unrelated setting keeps rewrite rules intact.
+	 *
+	 * @return void
+	 */
+	public function test_settings_update_with_same_slug_keeps_rules(): void {
+		update_option( 'nwff_settings', array( 'core' => array( 'feed_slug' => 'feed' ) ) );
+		update_option( 'rewrite_rules', array( 'sentinel' => 'sentinel' ) );
+
+		update_option(
+			'nwff_settings',
+			array(
+				'core' => array(
+					'feed_slug'   => 'feed',
+					'depth_hours' => 8,
+				),
+			)
+		);
+
+		$this->assertSame(
+			array( 'sentinel' => 'sentinel' ),
+			get_option( 'rewrite_rules' )
+		);
+	}
 }

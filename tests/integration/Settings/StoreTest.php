@@ -147,4 +147,189 @@ final class StoreTest extends WP_UnitTestCase {
 
 		$this->assertSame( 'feed', $store->feed_slug() );
 	}
+
+	/**
+	 * Non-array input sanitizes to an empty structure.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_non_array_returns_empty(): void {
+		$store = new Store( array() );
+
+		$this->assertSame(
+			array(
+				'core'      => array(),
+				'renderers' => array(),
+			),
+			$store->sanitize( 'garbage' )
+		);
+	}
+
+	/**
+	 * Unknown renderer keys are dropped by the whitelist.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_drops_unknown_renderer_keys(): void {
+		$schema = array(
+			'enabled' => array(
+				'type'    => 'checkbox',
+				'default' => false,
+			),
+		);
+		$store  = new Store( array( 'yandex' => new FakeRenderer( 'yandex', $schema ) ) );
+
+		$result = $store->sanitize(
+			array(
+				'renderers' => array(
+					'yandex' => array(
+						'enabled' => true,
+						'evil'    => 'injected',
+					),
+				),
+			)
+		);
+
+		$this->assertArrayHasKey( 'enabled', $result['renderers']['yandex'] );
+		$this->assertArrayNotHasKey( 'evil', $result['renderers']['yandex'] );
+	}
+
+	/**
+	 * Unknown renderer slugs are dropped entirely.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_drops_unknown_renderer_slug(): void {
+		$store = new Store( array( 'yandex' => new FakeRenderer( 'yandex' ) ) );
+
+		$result = $store->sanitize(
+			array(
+				'renderers' => array(
+					'yandex'  => array(),
+					'unknown' => array( 'foo' => 'bar' ),
+				),
+			)
+		);
+
+		$this->assertArrayHasKey( 'yandex', $result['renderers'] );
+		$this->assertArrayNotHasKey( 'unknown', $result['renderers'] );
+	}
+
+	/**
+	 * Checkbox values are cast to bool.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_checkbox_casts_to_bool(): void {
+		$schema = array(
+			'enabled' => array(
+				'type'    => 'checkbox',
+				'default' => false,
+			),
+		);
+		$store  = new Store( array( 'yandex' => new FakeRenderer( 'yandex', $schema ) ) );
+
+		$result = $store->sanitize(
+			array(
+				'renderers' => array(
+					'yandex' => array( 'enabled' => '1' ),
+				),
+			)
+		);
+
+		$this->assertTrue( $result['renderers']['yandex']['enabled'] );
+	}
+
+	/**
+	 * Number values are cast and clamped to min/max.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_number_clamps_to_bounds(): void {
+		$schema = array(
+			'tag_interview' => array(
+				'type'    => 'number',
+				'default' => 0,
+				'min'     => 0,
+				'max'     => 100,
+			),
+		);
+		$store  = new Store( array( 'yandex' => new FakeRenderer( 'yandex', $schema ) ) );
+
+		$too_high = $store->sanitize(
+			array(
+				'renderers' => array( 'yandex' => array( 'tag_interview' => '9999' ) ),
+			)
+		);
+		$this->assertSame( 100, $too_high['renderers']['yandex']['tag_interview'] );
+
+		$too_low = $store->sanitize(
+			array(
+				'renderers' => array( 'yandex' => array( 'tag_interview' => '-5' ) ),
+			)
+		);
+		$this->assertSame( 0, $too_low['renderers']['yandex']['tag_interview'] );
+	}
+
+	/**
+	 * Text values are sanitized against tags and control characters.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_text_strips_tags(): void {
+		$schema = array(
+			'include_taxonomies' => array(
+				'type'    => 'text',
+				'default' => '',
+			),
+		);
+		$store  = new Store( array( 'yandex' => new FakeRenderer( 'yandex', $schema ) ) );
+
+		$result = $store->sanitize(
+			array(
+				'renderers' => array(
+					'yandex' => array( 'include_taxonomies' => '<script>x</script>category:12' ),
+				),
+			)
+		);
+
+		$this->assertSame( 'category:12', $result['renderers']['yandex']['include_taxonomies'] );
+	}
+
+	/**
+	 * Feed slug passes through sanitize_title.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_feed_slug_uses_sanitize_title(): void {
+		$store  = new Store( array() );
+		$result = $store->sanitize(
+			array(
+				'core' => array( 'feed_slug' => 'My Feed!' ),
+			)
+		);
+
+		$this->assertSame( 'my-feed', $result['core']['feed_slug'] );
+	}
+
+	/**
+	 * Core depth and TTL are clamped to the allowed ranges.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_clamps_core_ranges(): void {
+		$store  = new Store( array() );
+		$result = $store->sanitize(
+			array(
+				'core' => array(
+					'feed_slug'   => 'feed',
+					'depth_hours' => 99,
+					'cache_ttl'   => 0,
+				),
+			)
+		);
+
+		$this->assertSame( 12, $result['core']['depth_hours'] );
+		$this->assertSame( 1, $result['core']['cache_ttl'] );
+	}
 }
