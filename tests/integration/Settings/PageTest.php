@@ -30,10 +30,11 @@ final class PageTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	protected function tearDown(): void {
-		global $wp_settings_sections, $wp_settings_fields;
+		global $wp_settings_sections, $wp_settings_fields, $wp_registered_settings;
 
 		unset( $wp_settings_sections['nwff_settings'] );
 		unset( $wp_settings_fields['nwff_settings'] );
+		unset( $wp_registered_settings['nwff_settings'] );
 
 		parent::tearDown();
 	}
@@ -53,6 +54,10 @@ final class PageTest extends WP_UnitTestCase {
 	/**
 	 * Register declares the nwff_settings option.
 	 *
+	 * Populates $wp_registered_settings directly; the registration
+	 * is synchronous and does not defer to admin_init. No do_action()
+	 * call is needed.
+	 *
 	 * @return void
 	 */
 	public function test_register_declares_setting(): void {
@@ -60,9 +65,6 @@ final class PageTest extends WP_UnitTestCase {
 
 		$page = new Page( new Store( array() ) );
 		$page->register();
-
-		// register_setting defers to admin_init; fire it explicitly.
-		do_action( 'admin_init' );
 
 		$this->assertArrayHasKey( 'nwff_settings', $wp_registered_settings );
 	}

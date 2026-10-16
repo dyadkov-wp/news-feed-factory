@@ -113,4 +113,108 @@ final class Store {
 
 		return $slug;
 	}
+
+	/**
+	 * Sanitize the settings input before it is saved.
+	 *
+	 * Whitelist driven: only keys present in the core schema and in
+	 * each renderer's get_settings_schema() survive. Unknown keys
+	 * (including renderer slugs not registered in the store) are
+	 * dropped. Checkboxes absent from the input are stored as false,
+	 * because unchecked boxes are not submitted by the browser.
+	 *
+	 * @param mixed $input Raw input from register_setting.
+	 * @return array{core: array<string, mixed>, renderers: array<string, array<string, mixed>>}
+	 */
+	public function sanitize( $input ): array {
+		if ( ! is_array( $input ) ) {
+			return array(
+				'core'      => array(),
+				'renderers' => array(),
+			);
+		}
+
+		$core_in      = is_array( $input['core'] ?? null ) ? $input['core'] : array();
+		$renderers_in = is_array( $input['renderers'] ?? null ) ? $input['renderers'] : array();
+
+		$core_out = array();
+
+		if ( array_key_exists( 'feed_slug', $core_in ) ) {
+			$core_out['feed_slug'] = sanitize_title( (string) $core_in['feed_slug'] );
+		}
+
+		if ( array_key_exists( 'depth_hours', $core_in ) ) {
+			$core_out['depth_hours'] = max( 1, min( 12, (int) $core_in['depth_hours'] ) );
+		}
+
+		if ( array_key_exists( 'cache_ttl', $core_in ) ) {
+			$core_out['cache_ttl'] = max( 1, min( 5, (int) $core_in['cache_ttl'] ) );
+		}
+
+		$renderers_out = array();
+
+		foreach ( $this->renderers as $slug => $renderer ) {
+			if ( ! isset( $renderers_in[ $slug ] ) || ! is_array( $renderers_in[ $slug ] ) ) {
+				continue;
+			}
+
+			$schema = $renderer->get_settings_schema();
+			$values = $renderers_in[ $slug ];
+			$clean  = array();
+
+			foreach ( $schema as $key => $field ) {
+				if ( ! is_array( $field ) ) {
+					continue;
+				}
+
+				$type = is_string( $field['type'] ?? null ) ? $field['type'] : 'text';
+
+				if ( 'checkbox' === $type ) {
+					$clean[ $key ] = ! empty( $values[ $key ] );
+					continue;
+				}
+
+				if ( ! array_key_exists( $key, $values ) ) {
+					continue;
+				}
+
+				$clean[ $key ] = $this->sanitize_field( $field, $values[ $key ] );
+			}
+
+			$renderers_out[ $slug ] = $clean;
+		}
+
+		return array(
+			'core'      => $core_out,
+			'renderers' => $renderers_out,
+		);
+	}
+
+	/**
+	 * Sanitize a single field value by its schema type.
+	 *
+	 * Checkboxes are handled before this method is called.
+	 *
+	 * @param array<string, mixed> $field Field schema.
+	 * @param mixed                $value Raw value.
+	 * @return int|string
+	 */
+	private function sanitize_field( array $field, $value ) {
+		$type = is_string( $field['type'] ?? null ) ? $field['type'] : 'text';
+
+		if ( 'number' === $type ) {
+			$int = (int) $value;
+
+			if ( isset( $field['min'] ) ) {
+				$int = max( (int) $field['min'], $int );
+			}
+			if ( isset( $field['max'] ) ) {
+				$int = min( (int) $field['max'], $int );
+			}
+
+			return $int;
+		}
+
+		return sanitize_text_field( (string) $value );
+	}
 }

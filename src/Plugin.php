@@ -20,6 +20,7 @@ use NWFF\Normalize\ImageExtractor;
 use NWFF\Normalize\Truncator;
 use NWFF\Render\Yandex\GenreResolver;
 use NWFF\Render\YandexRenderer;
+use NWFF\Settings\Page;
 use NWFF\Settings\Store;
 
 /**
@@ -50,6 +51,9 @@ final class Plugin {
 		add_action( 'save_post_post', array( self::class, 'on_save_post' ) );
 		add_action( 'deleted_post', array( self::class, 'on_deleted_post' ), 10, 2 );
 		add_action( 'set_object_terms', array( self::class, 'on_set_object_terms' ) );
+		add_action( 'admin_init', array( self::class, 'register_settings_page' ) );
+		add_action( 'admin_menu', array( self::class, 'register_settings_page' ) );
+		add_action( 'update_option_nwff_settings', array( self::class, 'on_settings_updated' ), 10, 2 );
 	}
 
 	/**
@@ -127,7 +131,45 @@ final class Plugin {
 	public static function invalidate_feed_cache(): void {
 		( new TransientCache() )->delete_by_prefix( TransientCache::FEED_PREFIX );
 	}
+	/**
+	 * Register the settings page.
+	 *
+	 * Hooked to both admin_init and admin_menu. The admin_init pass
+	 * does the actual registration (so register_setting runs before
+	 * options.php handles a POST). The admin_menu pass exists for
+	 * hook discovery and is a no-op.
+	 *
+	 * @return void
+	 */
+	public static function register_settings_page(): void {
+		if ( 'admin_init' !== current_filter() ) {
+			return;
+		}
 
+		( new Page( self::store() ) )->register();
+	}
+
+	/**
+	 * Flush rewrite rules when the feed slug changes.
+	 *
+	 * Hooked to update_option_nwff_settings. The feed slug is part of
+	 * the rewrite regex, so a change requires a flush. Any other
+	 * change is a no-op — the flush is expensive.
+	 *
+	 * @param mixed $old_value Previous option value.
+	 * @param mixed $value     New option value.
+	 * @return void
+	 */
+	public static function on_settings_updated( $old_value, $value ): void {
+		$old_slug = is_array( $old_value ) ? ( $old_value['core']['feed_slug'] ?? null ) : null;
+		$new_slug = is_array( $value ) ? ( $value['core']['feed_slug'] ?? null ) : null;
+
+		if ( $old_slug === $new_slug ) {
+			return;
+		}
+
+		flush_rewrite_rules();
+	}
 	/**
 	 * Return the renderer map keyed by slug.
 	 *
