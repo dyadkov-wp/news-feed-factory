@@ -1,6 +1,6 @@
 # Индекс ADR — News Feed Factory
 
-**Обновлено:** 2026-10-14
+**Обновлено:** 2026-10-16
 
 ## Типы ADR
 
@@ -31,7 +31,7 @@
 
 | ID | Название | Статус | Создано | Обновлено |
 | --- | --- | --- | --- | --- |
-| [ADR-ARCH-0001](ADR-ARCH-0001-core.md) | Ядро News Feed Factory | Proposed | 2026-10-02 | 2026-10-14 |
+| [ADR-ARCH-0001](ADR-ARCH-0001-core.md) | Ядро News Feed Factory | Proposed | 2026-10-02 | 2026-10-16 |
 | [ADR-ARCH-0002](ADR-ARCH-0002-content-normalization.md) | Нормализация контента | Proposed | 2026-10-02 | 2026-10-02 |
 | [ADR-ARCH-0003](ADR-ARCH-0003-yandex-renderer.md) | Рендерер Яндекса | Proposed | 2026-10-02 | 2026-10-02 |
 | ADR-ARCH-0004 | Рендерер Google | TBD | — | — |
