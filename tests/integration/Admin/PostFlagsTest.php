@@ -106,7 +106,7 @@ final class PostFlagsTest extends WP_UnitTestCase {
 
 		PostFlags::register();
 
-		do_action( 'add_meta_boxes', 'post', get_post( $this->make_post() ) );
+		do_action( 'add_meta_boxes', 'post' );
 
 		$this->assertArrayHasKey( 'nwff_post_flags', $wp_meta_boxes['post']['side']['default'] );
 	}

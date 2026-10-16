@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace NWFF;
 
+use NWFF\Admin\PostFlags;
 use NWFF\Cache\TransientCache;
 use NWFF\Data\Collector;
 use NWFF\Data\MetaRepository;
@@ -56,6 +57,9 @@ final class Plugin {
 		add_action( 'admin_menu', array( self::class, 'register_settings_page' ) );
 		add_action( 'update_option_nwff_settings', array( self::class, 'on_settings_updated' ), 10, 2 );
 		add_action( Cron::HOOK, array( Cron::class, 'cleanup' ) );
+
+		PostFlags::register();
+		add_action( 'save_post_post', array( PostFlags::class, 'save' ) );
 	}
 
 	/**

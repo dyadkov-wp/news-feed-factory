@@ -120,6 +120,39 @@ final class MetaRepository {
 	}
 
 	/**
+	 * Insert or update the feed-meta row for a post.
+	 *
+	 * Uses REPLACE: post_id is the primary key, so a single
+	 * statement covers both cases. updated_at is refreshed on every
+	 * save so an actively edited post never ages out of the table
+	 * before the daily cron window (ADR-ARCH-0001).
+	 *
+	 * The timestamp is produced with gmdate, not current_time, so
+	 * this method stays unit-testable without WordPress loaded. Both
+	 * calls yield the same UTC string.
+	 *
+	 * @param int  $post_id Post ID.
+	 * @param bool $exclude True to exclude the post from feeds.
+	 * @return void
+	 */
+	public function save( int $post_id, bool $exclude ): void {
+		global $wpdb;
+
+		$table = $wpdb->prefix . self::TABLE_SUFFIX;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom table; no WP API for a replace.
+		$wpdb->replace(
+			$table,
+			array(
+				'post_id'            => $post_id,
+				'exclude_from_feeds' => $exclude ? 1 : 0,
+				'updated_at'         => gmdate( 'Y-m-d H:i:s' ),
+			),
+			array( '%d', '%d', '%s' )
+		);
+	}
+
+	/**
 	 * Filter input to unique positive integers, preserving order.
 	 *
 	 * @param array<int, mixed> $post_ids Raw input.
