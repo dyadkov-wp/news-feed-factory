@@ -42,6 +42,7 @@ desktop.ini
 /build/
 /*.zip
 /*.tar.gz
+/var/
 
 # Логи
 *.log

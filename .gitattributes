@@ -43,6 +43,8 @@
 /.github/             export-ignore
 /.editorconfig        export-ignore
 
+/var/  export-ignore
+
 /vendor/              export-ignore
 /composer.json        export-ignore
 /composer.lock        export-ignore
