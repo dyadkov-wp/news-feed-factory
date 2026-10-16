@@ -96,6 +96,30 @@ final class MetaRepository {
 	}
 
 	/**
+	 * Deletes rows older than the given UTC datetime.
+	 *
+	 * Called by the daily cron cleanup with a threshold of
+	 * "now minus retention window" (ADR-ARCH-0001).
+	 *
+	 * @param string $threshold MySQL datetime in UTC.
+	 * @return int Number of rows deleted.
+	 */
+	public function delete_older_than( string $threshold ): int {
+		global $wpdb;
+
+		$table = $wpdb->prefix . self::TABLE_SUFFIX;
+		$sql   = "DELETE FROM {$table} WHERE updated_at < %s";
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql is built above with a single %s placeholder and passed through $wpdb->prepare() on the next line.
+		$prepared = $wpdb->prepare( $sql, $threshold );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- Custom table; no WP API for a bulk delete. Result is not cached.
+		$deleted = $wpdb->query( $prepared );
+
+		return is_int( $deleted ) ? $deleted : 0;
+	}
+
+	/**
 	 * Filter input to unique positive integers, preserving order.
 	 *
 	 * @param array<int, mixed> $post_ids Raw input.

@@ -13,6 +13,7 @@ use NWFF\Cache\TransientCache;
 use NWFF\Data\Collector;
 use NWFF\Data\MetaRepository;
 use NWFF\Feed\Endpoint;
+use NWFF\Install\Cron;
 use NWFF\Install\Schema;
 use NWFF\Normalize\ContentNormalizer;
 use NWFF\Normalize\HtmlSanitizer;
@@ -54,6 +55,7 @@ final class Plugin {
 		add_action( 'admin_init', array( self::class, 'register_settings_page' ) );
 		add_action( 'admin_menu', array( self::class, 'register_settings_page' ) );
 		add_action( 'update_option_nwff_settings', array( self::class, 'on_settings_updated' ), 10, 2 );
+		add_action( Cron::HOOK, array( Cron::class, 'cleanup' ) );
 	}
 
 	/**
@@ -71,6 +73,20 @@ final class Plugin {
 		Schema::activate();
 		self::register_rewrite_rules();
 		flush_rewrite_rules();
+		Cron::schedule();
+	}
+
+	/**
+	 * Runs on plugin deactivation.
+	 *
+	 * Removes the scheduled cleanup event. Does not drop tables or
+	 * options: uninstall.php handles removal, deactivation must be
+	 * reversible.
+	 *
+	 * @return void
+	 */
+	public static function deactivate(): void {
+		Cron::unschedule();
 	}
 
 	/**
