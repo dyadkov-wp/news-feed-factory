@@ -220,4 +220,15 @@ final class PluginTest extends WP_UnitTestCase {
 
 		$this->assertNotFalse( get_option( 'rewrite_rules' ) );
 	}
+	/**
+	 * Renderers accessor returns the same instances across calls.
+	 *
+	 * @return void
+	 */
+	public function test_renderers_returns_same_instances(): void {
+		$first  = Plugin::renderers();
+		$second = Plugin::renderers();
+
+		$this->assertSame( $first['yandex'], $second['yandex'] );
+	}
 }

@@ -39,12 +39,39 @@ final class EndpointTest extends WP_UnitTestCase {
 	private Endpoint $endpoint;
 
 	/**
+	 * Enabled settings for the yandex renderer.
+	 *
+	 * @var array<string, mixed>
+	 */
+	private array $settings;
+
+	/**
 	 * Set up the endpoint with real collaborators.
 	 *
 	 * @return void
 	 */
 	protected function setUp(): void {
 		parent::setUp();
+
+		$this->settings = array(
+			'core'      => array(
+				'feed_slug'   => 'feed',
+				'depth_hours' => 4,
+				'cache_ttl'   => 5,
+			),
+			'renderers' => array(
+				'yandex' => array(
+					'enabled'            => true,
+					'tag_interview'      => 0,
+					'tag_article'        => 0,
+					'tag_lenta'          => 0,
+					'by_length'          => false,
+					'include_taxonomies' => '',
+					'exclude_taxonomies' => '',
+				),
+			),
+		);
+
 		$this->endpoint = new Endpoint(
 			array(
 				'yandex' => new YandexRenderer( new GenreResolver(), new Truncator() ),
@@ -95,7 +122,7 @@ final class EndpointTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_unknown_slug_returns_null(): void {
-		$this->assertNull( $this->endpoint->serve( 'unknown' ) );
+		$this->assertNull( $this->endpoint->serve( 'unknown', $this->settings ) );
 	}
 
 	/**
@@ -106,7 +133,7 @@ final class EndpointTest extends WP_UnitTestCase {
 	public function test_yandex_slug_returns_rss(): void {
 		$this->make_post();
 
-		$response = $this->endpoint->serve( 'yandex' );
+		$response = $this->endpoint->serve( 'yandex', $this->settings );
 
 		$this->assertIsArray( $response );
 		$this->assertArrayHasKey( 'body', $response );
@@ -124,7 +151,7 @@ final class EndpointTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_empty_feed_returns_valid_rss(): void {
-		$response = $this->endpoint->serve( 'yandex' );
+		$response = $this->endpoint->serve( 'yandex', $this->settings );
 
 		$this->assertIsArray( $response );
 		$rss = $this->parse( $response['body'] );
@@ -139,11 +166,21 @@ final class EndpointTest extends WP_UnitTestCase {
 	public function test_cache_hit_returns_same_body(): void {
 		$this->make_post();
 
-		$first  = $this->endpoint->serve( 'yandex' );
-		$second = $this->endpoint->serve( 'yandex' );
+		$first  = $this->endpoint->serve( 'yandex', $this->settings );
+		$second = $this->endpoint->serve( 'yandex', $this->settings );
 
 		$this->assertIsArray( $first );
 		$this->assertIsArray( $second );
 		$this->assertSame( $first['body'], $second['body'] );
+	}
+	/**
+	 * A disabled renderer returns null.
+	 *
+	 * @return void
+	 */
+	public function test_disabled_renderer_returns_null(): void {
+		$this->settings['renderers']['yandex']['enabled'] = false;
+
+		$this->assertNull( $this->endpoint->serve( 'yandex', $this->settings ) );
 	}
 }

@@ -84,9 +84,54 @@ final class RendererInterfaceTest extends TestCase {
 	 *
 	 * @return void
 	 */
+	/**
+	 * The interface exposes exactly seven methods.
+	 *
+	 * @return void
+	 */
 	public function test_interface_method_count(): void {
 		$reflection = new ReflectionClass( RendererInterface::class );
 
-		$this->assertCount( 4, $reflection->getMethods() );
+		$this->assertCount( 7, $reflection->getMethods() );
+	}
+
+	/**
+	 * Settings schema getter returns an array and takes no arguments.
+	 *
+	 * @return void
+	 */
+	public function test_get_settings_schema_signature(): void {
+		$method = new ReflectionMethod( RendererInterface::class, 'get_settings_schema' );
+
+		$this->assertSame( 0, $method->getNumberOfParameters() );
+		$this->assertSame( 'array', (string) $method->getReturnType() );
+	}
+
+	/**
+	 * Enabled predicate takes an array and returns a bool.
+	 *
+	 * @return void
+	 */
+	public function test_is_enabled_signature(): void {
+		$method = new ReflectionMethod( RendererInterface::class, 'is_enabled' );
+		$params = $method->getParameters();
+
+		$this->assertSame( 1, $method->getNumberOfParameters() );
+		$this->assertSame( 'array', (string) $params[0]->getType() );
+		$this->assertSame( 'bool', (string) $method->getReturnType() );
+	}
+
+	/**
+	 * Collector args getter takes an array and returns an array.
+	 *
+	 * @return void
+	 */
+	public function test_get_collector_args_signature(): void {
+		$method = new ReflectionMethod( RendererInterface::class, 'get_collector_args' );
+		$params = $method->getParameters();
+
+		$this->assertSame( 1, $method->getNumberOfParameters() );
+		$this->assertSame( 'array', (string) $params[0]->getType() );
+		$this->assertSame( 'array', (string) $method->getReturnType() );
 	}
 }

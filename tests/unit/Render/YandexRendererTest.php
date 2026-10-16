@@ -431,4 +431,174 @@ final class YandexRendererTest extends TestCase {
 
 		$this->assertCount( 0, $rss->channel->item );
 	}
+
+	/**
+	 * Build the full settings array with the Yandex section.
+	 *
+	 * @param array<string, mixed> $renderer_overrides Yandex field overrides.
+	 * @param array<string, mixed> $core_overrides     Core field overrides.
+	 * @return array<string, mixed>
+	 */
+	private function renderer_settings( array $renderer_overrides = array(), array $core_overrides = array() ): array {
+		return array(
+			'core'      => array_merge(
+				array(
+					'feed_slug'   => 'feed',
+					'depth_hours' => 4,
+					'cache_ttl'   => 5,
+				),
+				$core_overrides
+			),
+			'renderers' => array(
+				'yandex' => array_merge(
+					array(
+						'enabled'            => true,
+						'tag_interview'      => 0,
+						'tag_article'        => 0,
+						'tag_lenta'          => 0,
+						'by_length'          => false,
+						'include_taxonomies' => '',
+						'exclude_taxonomies' => '',
+					),
+					$renderer_overrides
+				),
+			),
+		);
+	}
+
+	/**
+	 * Settings schema covers every key the collector reads.
+	 *
+	 * @return void
+	 */
+	public function test_settings_schema_has_required_keys(): void {
+		$schema = $this->renderer->get_settings_schema();
+
+		foreach ( array( 'enabled', 'tag_interview', 'tag_article', 'tag_lenta', 'by_length', 'include_taxonomies', 'exclude_taxonomies' ) as $key ) {
+			$this->assertArrayHasKey( $key, $schema, "Missing schema key: {$key}" );
+		}
+
+		foreach ( $schema as $key => $field ) {
+			$this->assertArrayHasKey( 'type', $field, "Schema field {$key} has no type." );
+			$this->assertArrayHasKey( 'label', $field, "Schema field {$key} has no label." );
+		}
+	}
+
+	/**
+	 * Missing enabled key disables the renderer.
+	 *
+	 * @return void
+	 */
+	public function test_is_enabled_false_when_key_missing(): void {
+		$settings = array(
+			'core'      => array(),
+			'renderers' => array( 'yandex' => array() ),
+		);
+
+		$this->assertFalse( $this->renderer->is_enabled( $settings ) );
+	}
+
+	/**
+	 * Explicit enabled = true enables the renderer.
+	 *
+	 * @return void
+	 */
+	public function test_is_enabled_true_when_set(): void {
+		$this->assertTrue( $this->renderer->is_enabled( $this->renderer_settings( array( 'enabled' => true ) ) ) );
+	}
+
+	/**
+	 * Explicit enabled = false disables the renderer.
+	 *
+	 * @return void
+	 */
+	public function test_is_enabled_false_when_disabled(): void {
+		$this->assertFalse( $this->renderer->is_enabled( $this->renderer_settings( array( 'enabled' => false ) ) ) );
+	}
+
+	/**
+	 * Collector args carry the core depth and empty taxonomy filters.
+	 *
+	 * @return void
+	 */
+	public function test_collector_args_defaults(): void {
+		$args = $this->renderer->get_collector_args( $this->renderer_settings() );
+
+		$this->assertSame( 4, $args['depth_hours'] );
+		$this->assertSame( 0, $args['limit'] );
+		$this->assertSame( array(), $args['taxonomy_include'] );
+		$this->assertSame( array(), $args['taxonomy_exclude'] );
+		$this->assertArrayNotHasKey( 'normalization_config', $args );
+	}
+
+	/**
+	 * Collector args read depth from the core section.
+	 *
+	 * @return void
+	 */
+	public function test_collector_args_depth_from_core(): void {
+		$args = $this->renderer->get_collector_args(
+			$this->renderer_settings( array(), array( 'depth_hours' => 8 ) )
+		);
+
+		$this->assertSame( 8, $args['depth_hours'] );
+	}
+
+	/**
+	 * Include taxonomy filter parses to a taxonomy map.
+	 *
+	 * @return void
+	 */
+	public function test_collector_args_parses_include_taxonomies(): void {
+		$args = $this->renderer->get_collector_args(
+			$this->renderer_settings( array( 'include_taxonomies' => 'category:12,15|post_tag:100' ) )
+		);
+
+		$this->assertSame(
+			array(
+				'category' => array( 12, 15 ),
+				'post_tag' => array( 100 ),
+			),
+			$args['taxonomy_include']
+		);
+	}
+
+	/**
+	 * Filter without a taxonomy prefix defaults to category.
+	 *
+	 * @return void
+	 */
+	public function test_collector_args_defaults_to_category_prefix(): void {
+		$args = $this->renderer->get_collector_args(
+			$this->renderer_settings( array( 'include_taxonomies' => '12,15' ) )
+		);
+
+		$this->assertSame( array( 'category' => array( 12, 15 ) ), $args['taxonomy_include'] );
+	}
+
+	/**
+	 * Exclude taxonomy filter parses to a taxonomy map.
+	 *
+	 * @return void
+	 */
+	public function test_collector_args_parses_exclude_taxonomies(): void {
+		$args = $this->renderer->get_collector_args(
+			$this->renderer_settings( array( 'exclude_taxonomies' => 'post_tag:100' ) )
+		);
+
+		$this->assertSame( array( 'post_tag' => array( 100 ) ), $args['taxonomy_exclude'] );
+	}
+
+	/**
+	 * Garbage in the filter string is dropped silently.
+	 *
+	 * @return void
+	 */
+	public function test_collector_args_drops_invalid_term_values(): void {
+		$args = $this->renderer->get_collector_args(
+			$this->renderer_settings( array( 'include_taxonomies' => 'category:12,abc,-1,0,15,1.5, 12' ) )
+		);
+
+		$this->assertSame( array( 'category' => array( 12, 15 ) ), $args['taxonomy_include'] );
+	}
 }
