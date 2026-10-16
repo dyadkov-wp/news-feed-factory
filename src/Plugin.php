@@ -20,6 +20,7 @@ use NWFF\Normalize\ImageExtractor;
 use NWFF\Normalize\Truncator;
 use NWFF\Render\Yandex\GenreResolver;
 use NWFF\Render\YandexRenderer;
+use NWFF\Settings\Store;
 
 /**
  * Registers plugin hooks and wires collaborators (ADR-ARCH-0001).
@@ -29,8 +30,14 @@ use NWFF\Render\YandexRenderer;
  */
 final class Plugin {
 
-	private const QUERY_VAR    = 'nwff_feed_slug';
-	private const DEFAULT_SLUG = 'feed';
+	private const QUERY_VAR = 'nwff_feed_slug';
+
+	/**
+	 * Cached store instance, built on first access.
+	 *
+	 * @var Store|null
+	 */
+	private static ?Store $store = null;
 
 	/**
 	 * Register WordPress hooks.
@@ -124,12 +131,12 @@ final class Plugin {
 	/**
 	 * Return the renderer map keyed by slug.
 	 *
+	 * Delegates to Store, the single owner of renderer instances.
+	 *
 	 * @return array<string, \NWFF\Render\RendererInterface>
 	 */
 	public static function renderers(): array {
-		return array(
-			'yandex' => new YandexRenderer( new GenreResolver(), new Truncator() ),
-		);
+		return self::store()->renderers();
 	}
 
 	/**
@@ -138,7 +145,7 @@ final class Plugin {
 	 * @return void
 	 */
 	public static function register_rewrite_rules(): void {
-		$slug = preg_quote( self::feed_slug(), '/' );
+		$slug = preg_quote( self::store()->feed_slug(), '/' );
 
 		add_rewrite_tag( '%' . self::QUERY_VAR . '%', '([^/]+)' );
 		add_rewrite_rule(
@@ -162,7 +169,7 @@ final class Plugin {
 			return;
 		}
 
-		$response = self::make_endpoint()->serve( $slug );
+		$response = self::make_endpoint()->serve( $slug, self::store()->get() );
 
 		if ( null === $response ) {
 			status_header( 404 );
@@ -178,24 +185,29 @@ final class Plugin {
 	}
 
 	/**
-	 * Return the configured feed slug, defaulting to "feed".
+	 * Build the renderer map.
 	 *
-	 * @return string
+	 * Private: instances are owned by Store.
+	 *
+	 * @return array<string, \NWFF\Render\RendererInterface>
 	 */
-	private static function feed_slug(): string {
-		$settings = get_option( 'nwff_settings' );
+	private static function make_renderers(): array {
+		return array(
+			'yandex' => new YandexRenderer( new GenreResolver(), new Truncator() ),
+		);
+	}
 
-		if ( ! is_array( $settings ) ) {
-			return self::DEFAULT_SLUG;
+	/**
+	 * Return the store, building it on first access.
+	 *
+	 * @return Store
+	 */
+	private static function store(): Store {
+		if ( null === self::$store ) {
+			self::$store = new Store( self::make_renderers() );
 		}
 
-		$slug = $settings['feed_slug'] ?? self::DEFAULT_SLUG;
-
-		if ( ! is_string( $slug ) || '' === $slug ) {
-			return self::DEFAULT_SLUG;
-		}
-
-		return $slug;
+		return self::$store;
 	}
 
 	/**

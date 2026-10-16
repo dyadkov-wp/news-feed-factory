@@ -30,6 +30,8 @@ final class YandexRenderer implements RendererInterface {
 	private const YANDEX_NAMESPACE = 'http://news.yandex.ru';
 	private const MEDIA_NAMESPACE  = 'http://search.yahoo.com/mrss/';
 
+	private const TAXONOMY_DEFAULT = 'category';
+
 	/**
 	 * Genre resolver.
 	 *
@@ -91,6 +93,92 @@ final class YandexRenderer implements RendererInterface {
 	}
 
 	/**
+	 * Settings schema for this renderer (ADR-ARCH-0006).
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function get_settings_schema(): array {
+		return array(
+			'enabled'            => array(
+				'type'    => 'checkbox',
+				'label'   => 'Enable Yandex feed',
+				'default' => false,
+			),
+			'tag_interview'      => array(
+				'type'    => 'number',
+				'label'   => 'Interview tag ID',
+				'default' => 0,
+				'min'     => 0,
+			),
+			'tag_article'        => array(
+				'type'    => 'number',
+				'label'   => 'Article tag ID',
+				'default' => 0,
+				'min'     => 0,
+			),
+			'tag_lenta'          => array(
+				'type'    => 'number',
+				'label'   => 'Lenta tag ID',
+				'default' => 0,
+				'min'     => 0,
+			),
+			'by_length'          => array(
+				'type'    => 'checkbox',
+				'label'   => 'Detect lenta by content length',
+				'default' => true,
+			),
+			'include_taxonomies' => array(
+				'type'        => 'text',
+				'label'       => 'Include taxonomies',
+				'default'     => '',
+				'description' => 'Format: category:12,15|post_tag:100.',
+			),
+			'exclude_taxonomies' => array(
+				'type'        => 'text',
+				'label'       => 'Exclude taxonomies',
+				'default'     => '',
+				'description' => 'Format: category:12,15|post_tag:100.',
+			),
+		);
+	}
+
+	/**
+	 * Checks whether the Yandex renderer is enabled.
+	 *
+	 * @param array<string, mixed> $settings Merged settings.
+	 * @return bool
+	 */
+	public function is_enabled( array $settings ): bool {
+		$renderers = is_array( $settings['renderers'] ?? null ) ? $settings['renderers'] : array();
+		$renderer  = is_array( $renderers[ self::SLUG ] ?? null ) ? $renderers[ self::SLUG ] : array();
+
+		return ! empty( $renderer['enabled'] );
+	}
+
+	/**
+	 * Returns the collector args for the Yandex feed.
+	 *
+	 * Covers only "which posts": depth, limit and taxonomy
+	 * filters. Normalization config is layered on by Endpoint
+	 * (ADR-ARCH-0006).
+	 *
+	 * @param array<string, mixed> $settings Merged settings.
+	 * @return array<string, mixed>
+	 */
+	public function get_collector_args( array $settings ): array {
+		$core      = is_array( $settings['core'] ?? null ) ? $settings['core'] : array();
+		$renderers = is_array( $settings['renderers'] ?? null ) ? $settings['renderers'] : array();
+		$renderer  = is_array( $renderers[ self::SLUG ] ?? null ) ? $renderers[ self::SLUG ] : array();
+
+		return array(
+			'depth_hours'      => (int) ( $core['depth_hours'] ?? 4 ),
+			'limit'            => 0,
+			'taxonomy_include' => $this->parse_taxonomies( $renderer['include_taxonomies'] ?? '' ),
+			'taxonomy_exclude' => $this->parse_taxonomies( $renderer['exclude_taxonomies'] ?? '' ),
+		);
+	}
+
+	/**
 	 * Produce the RSS body from normalized items.
 	 *
 	 * @param array<int, array<string, mixed>> $items Normalized items.
@@ -110,6 +198,71 @@ final class YandexRenderer implements RendererInterface {
 		}
 
 		return $this->render_document( $channel, $body );
+	}
+
+	/**
+	 * Parse a taxonomy filter string into a taxonomy => IDs map.
+	 *
+	 * Format: "category:12,15|post_tag:100". Entries without a
+	 * taxonomy prefix default to "category". Values are accepted
+	 * only if they are all digits and cast to an int greater than
+	 * zero; anything else is dropped silently. A taxonomy with no
+	 * surviving IDs is omitted. Empty input yields an empty array.
+	 *
+	 * @param mixed $raw Raw filter string.
+	 * @return array<string, int[]>
+	 */
+	private function parse_taxonomies( $raw ): array {
+		if ( ! is_string( $raw ) ) {
+			return array();
+		}
+
+		$raw = trim( $raw );
+		if ( '' === $raw ) {
+			return array();
+		}
+
+		$result = array();
+
+		foreach ( explode( '|', $raw ) as $chunk ) {
+			$chunk = trim( $chunk );
+			if ( '' === $chunk ) {
+				continue;
+			}
+
+			if ( false !== strpos( $chunk, ':' ) ) {
+				$parts    = explode( ':', $chunk, 2 );
+				$taxonomy = trim( $parts[0] );
+				$ids_raw  = $parts[1];
+			} else {
+				$taxonomy = self::TAXONOMY_DEFAULT;
+				$ids_raw  = $chunk;
+			}
+
+			if ( '' === $taxonomy ) {
+				continue;
+			}
+
+			$ids = array();
+			foreach ( explode( ',', $ids_raw ) as $id_raw ) {
+				if ( ! ctype_digit( $id_raw ) ) {
+					continue;
+				}
+				$id = (int) $id_raw;
+				if ( $id <= 0 ) {
+					continue;
+				}
+				$ids[] = $id;
+			}
+
+			if ( array() === $ids ) {
+				continue;
+			}
+
+			$result[ $taxonomy ] = array_values( array_unique( $ids ) );
+		}
+
+		return $result;
 	}
 
 	/**

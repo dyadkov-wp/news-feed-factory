@@ -10,11 +10,12 @@ declare( strict_types=1 );
 namespace NWFF\Render;
 
 /**
- * Contract every feed renderer implements (ADR-ARCH-0001).
+ * Contract every feed renderer implements (ADR-ARCH-0001,
+ * ADR-ARCH-0006).
  *
  * A renderer declares its identity (slug, content type), its
- * normalization requirements, and produces the feed body from
- * normalized items.
+ * normalization requirements, its settings schema, whether it is
+ * enabled, its collector args, and produces the feed body.
  */
 interface RendererInterface {
 
@@ -47,4 +48,30 @@ interface RendererInterface {
 	 * @return string
 	 */
 	public function render( array $items, array $args ): string;
+
+	/**
+	 * Settings schema for this renderer (ADR-ARCH-0006).
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function get_settings_schema(): array;
+
+	/**
+	 * Checks whether the renderer is enabled.
+	 *
+	 * @param array<string, mixed> $settings Merged settings.
+	 * @return bool
+	 */
+	public function is_enabled( array $settings ): bool;
+
+	/**
+	 * Collector args for this renderer (ADR-ARCH-0006).
+	 *
+	 * Covers only "which posts" — depth, limit and taxonomy
+	 * filters. The normalization config is layered on by Endpoint.
+	 *
+	 * @param array<string, mixed> $settings Merged settings.
+	 * @return array<string, mixed>
+	 */
+	public function get_collector_args( array $settings ): array;
 }

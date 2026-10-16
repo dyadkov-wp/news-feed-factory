@@ -22,9 +22,7 @@ use NWFF\Render\RendererInterface;
  */
 final class Endpoint {
 
-	private const CACHE_TTL = 300;
-
-	private const DEFAULT_DEPTH_HOURS = 4;
+	private const DEFAULT_CACHE_TTL_MINUTES = 5;
 
 	/**
 	 * Renderer map keyed by slug.
@@ -77,17 +75,29 @@ final class Endpoint {
 	/**
 	 * Serve a feed for the given slug.
 	 *
-	 * @param string $slug Renderer slug.
-	 * @return array{body: string, content_type: string}|null Null if the slug is unknown.
+	 * Returns null when the slug is unknown or the renderer is
+	 * disabled. Endpoint layers the normalization config onto the
+	 * collector args (ADR-ARCH-0006): the renderer declares only
+	 * "which posts", normalization is separate.
+	 *
+	 * @param string               $slug     Renderer slug.
+	 * @param array<string, mixed> $settings Merged settings array.
+	 * @return array{body: string, content_type: string}|null Null if the slug is unknown or the renderer is disabled.
 	 */
-	public function serve( string $slug ): ?array {
+	public function serve( string $slug, array $settings ): ?array {
 		if ( ! isset( $this->renderers[ $slug ] ) ) {
 			return null;
 		}
 
 		$renderer = $this->renderers[ $slug ];
-		$args     = $this->build_args( $renderer );
-		$key      = $this->cache_key( $slug, $args );
+		if ( ! $renderer->is_enabled( $settings ) ) {
+			return null;
+		}
+
+		$args                         = $renderer->get_collector_args( $settings );
+		$args['normalization_config'] = $renderer->get_normalization_config();
+
+		$key = $this->cache_key( $slug, $args );
 
 		$cached = $this->cache->get( $key );
 		if ( is_string( $cached ) && '' !== $cached ) {
@@ -99,35 +109,22 @@ final class Endpoint {
 
 		$items = $this->collect_and_normalize( $args );
 
+		$renderers_settings = is_array( $settings['renderers'] ?? null ) ? $settings['renderers'] : array();
+		$renderer_settings  = is_array( $renderers_settings[ $slug ] ?? null ) ? $renderers_settings[ $slug ] : array();
+
 		$body = $renderer->render(
 			$items,
 			array(
 				'channel'  => $this->channel(),
-				'settings' => array(),
+				'settings' => $renderer_settings,
 			)
 		);
 
-		$this->cache->set( $key, $body, self::CACHE_TTL );
+		$this->cache->set( $key, $body, $this->ttl_seconds( $settings ) );
 
 		return array(
 			'body'         => $body,
 			'content_type' => $renderer->get_content_type(),
-		);
-	}
-
-	/**
-	 * Build Collector args for the given renderer.
-	 *
-	 * @param RendererInterface $renderer Renderer.
-	 * @return array<string, mixed>
-	 */
-	private function build_args( RendererInterface $renderer ): array {
-		return array(
-			'depth_hours'          => self::DEFAULT_DEPTH_HOURS,
-			'limit'                => 0,
-			'taxonomy_include'     => array(),
-			'taxonomy_exclude'     => array(),
-			'normalization_config' => $renderer->get_normalization_config(),
 		);
 	}
 
@@ -149,6 +146,23 @@ final class Endpoint {
 		}
 
 		return $items;
+	}
+
+	/**
+	 * Return the cache TTL in seconds, from the core settings.
+	 *
+	 * @param array<string, mixed> $settings Merged settings.
+	 * @return int
+	 */
+	private function ttl_seconds( array $settings ): int {
+		$core = is_array( $settings['core'] ?? null ) ? $settings['core'] : array();
+		$ttl  = (int) ( $core['cache_ttl'] ?? self::DEFAULT_CACHE_TTL_MINUTES );
+
+		if ( $ttl <= 0 ) {
+			$ttl = self::DEFAULT_CACHE_TTL_MINUTES;
+		}
+
+		return $ttl * MINUTE_IN_SECONDS;
 	}
 
 	/**
