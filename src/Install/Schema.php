@@ -23,6 +23,11 @@ final class Schema {
 	 *
 	 * @return void
 	 */
+	/**
+	 * Runs on plugin activation.
+	 *
+	 * @return void
+	 */
 	public static function activate(): void {
 		global $wpdb;
 
@@ -41,5 +46,24 @@ final class Schema {
 		dbDelta( $sql );
 
 		update_option( 'nwff_db_version', NWFF_DB_VERSION );
+
+		// dbDelta fails silently if the CREATE TABLE statement does
+		// not match its expected format. Verify the table exists so
+		// the failure is visible instead of surfacing as an SQL error
+		// on the first feed request.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Activation-time existence check; result is used once, never cached.
+		$exists = $wpdb->get_var(
+			$wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name )
+		);
+		if ( $exists !== $table_name ) {
+			wp_trigger_error(
+				__METHOD__,
+				sprintf(
+					'Table %s was not created. Check the CREATE TABLE syntax in Schema::activate() against dbDelta requirements.',
+					$table_name
+				),
+				E_USER_WARNING
+			);
+		}
 	}
 }
