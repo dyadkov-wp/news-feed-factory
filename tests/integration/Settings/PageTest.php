@@ -18,7 +18,8 @@ use WP_UnitTestCase;
 require_once __DIR__ . '/FakeRenderer.php';
 
 /**
- * Covers Page::register() setting, section and field registration.
+ * Covers Page::register() hook wiring and Page::register_settings()
+ * side effects.
  *
  * @group integration
  */
@@ -40,7 +41,7 @@ final class PageTest extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Register adds the options page to admin_menu.
+	 * Register wires the add_page callback to admin_menu.
 	 *
 	 * @return void
 	 */
@@ -48,54 +49,65 @@ final class PageTest extends WP_UnitTestCase {
 		$page = new Page( new Store( array() ) );
 		$page->register();
 
-		$this->assertNotFalse( has_action( 'admin_menu' ) );
+		$this->assertNotFalse( has_action( 'admin_menu', array( $page, 'add_page' ) ) );
 	}
 
 	/**
-	 * Register declares the nwff_settings option.
-	 *
-	 * Populates $wp_registered_settings directly; the registration
-	 * is synchronous and does not defer to admin_init. No do_action()
-	 * call is needed.
+	 * Register wires the register_settings callback to admin_init.
 	 *
 	 * @return void
 	 */
-	public function test_register_declares_setting(): void {
-		global $wp_registered_settings;
-
+	public function test_register_hooks_admin_init(): void {
 		$page = new Page( new Store( array() ) );
 		$page->register();
 
+		$this->assertNotFalse( has_action( 'admin_init', array( $page, 'register_settings' ) ) );
+	}
+
+	/**
+	 * Register_settings declares the nwff_settings option.
+	 *
+	 * @return void
+	 */
+	public function test_register_settings_declares_setting(): void {
+		global $wp_registered_settings;
+
+		$page = new Page( new Store( array() ) );
+		$page->register_settings();
+
+		$this->assertIsArray( $wp_registered_settings );
 		$this->assertArrayHasKey( 'nwff_settings', $wp_registered_settings );
 	}
 
 	/**
-	 * Register adds the core section.
+	 * Register_settings adds the core section.
 	 *
 	 * @return void
 	 */
-	public function test_register_adds_core_section(): void {
+	public function test_register_settings_adds_core_section(): void {
 		global $wp_settings_sections;
 
 		$page = new Page( new Store( array() ) );
-		$page->register();
+		$page->register_settings();
 
+		$this->assertIsArray( $wp_settings_sections );
 		$this->assertArrayHasKey( 'nwff_settings', $wp_settings_sections );
 		$this->assertArrayHasKey( 'nwff_core', $wp_settings_sections['nwff_settings'] );
 	}
 
 	/**
-	 * Register adds a section per renderer.
+	 * Register_settings adds a section per renderer.
 	 *
 	 * @return void
 	 */
-	public function test_register_adds_renderer_section(): void {
+	public function test_register_settings_adds_renderer_section(): void {
 		global $wp_settings_sections;
 
 		$store = new Store( array( 'yandex' => new FakeRenderer( 'yandex' ) ) );
 		$page  = new Page( $store );
-		$page->register();
+		$page->register_settings();
 
+		$this->assertArrayHasKey( 'nwff_settings', $wp_settings_sections );
 		$this->assertArrayHasKey( 'nwff_renderer_yandex', $wp_settings_sections['nwff_settings'] );
 	}
 }

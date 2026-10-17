@@ -53,13 +53,13 @@ final class Plugin {
 		add_action( 'save_post_post', array( self::class, 'on_save_post' ) );
 		add_action( 'deleted_post', array( self::class, 'on_deleted_post' ), 10, 2 );
 		add_action( 'set_object_terms', array( self::class, 'on_set_object_terms' ) );
-		add_action( 'admin_init', array( self::class, 'register_settings_page' ) );
-		add_action( 'admin_menu', array( self::class, 'register_settings_page' ) );
 		add_action( 'update_option_nwff_settings', array( self::class, 'on_settings_updated' ), 10, 2 );
 		add_action( Cron::HOOK, array( Cron::class, 'cleanup' ) );
 
 		PostFlags::register();
 		add_action( 'save_post_post', array( PostFlags::class, 'save' ) );
+
+		( new Page( self::store() ) )->register();
 	}
 
 	/**
@@ -150,23 +150,6 @@ final class Plugin {
 	 */
 	public static function invalidate_feed_cache(): void {
 		( new TransientCache() )->delete_by_prefix( TransientCache::FEED_PREFIX );
-	}
-	/**
-	 * Register the settings page.
-	 *
-	 * Hooked to both admin_init and admin_menu. The admin_init pass
-	 * does the actual registration (so register_setting runs before
-	 * options.php handles a POST). The admin_menu pass exists for
-	 * hook discovery and is a no-op.
-	 *
-	 * @return void
-	 */
-	public static function register_settings_page(): void {
-		if ( 'admin_init' !== current_filter() ) {
-			return;
-		}
-
-		( new Page( self::store() ) )->register();
 	}
 
 	/**

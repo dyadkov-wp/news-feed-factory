@@ -44,8 +44,19 @@ final class Page {
 	 */
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'add_page' ) );
-		$this->add_sections();
+		add_action( 'admin_init', array( $this, 'register_settings' ) );
+	}
 
+	/**
+	 * Register the option, sections and fields on admin_init.
+	 *
+	 * Hooked to admin_init so register_setting() runs before
+	 * options.php handles a POST.
+	 *
+	 * @return void
+	 */
+	public function register_settings(): void {
+		$this->add_sections();
 		register_setting(
 			self::OPTION_GROUP,
 			self::OPTION_NAME,

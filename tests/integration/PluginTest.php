@@ -231,18 +231,6 @@ final class PluginTest extends WP_UnitTestCase {
 
 		$this->assertSame( $first['yandex'], $second['yandex'] );
 	}
-	/**
-	 * Init registers the admin_menu settings-page hook.
-	 *
-	 * @return void
-	 */
-	public function test_init_registers_admin_menu_hook(): void {
-		Plugin::init();
-
-		$this->assertNotFalse(
-			has_action( 'admin_menu', array( Plugin::class, 'register_settings_page' ) )
-		);
-	}
 
 	/**
 	 * Init registers the settings-update hook.
