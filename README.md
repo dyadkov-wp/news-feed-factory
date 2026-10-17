@@ -30,6 +30,9 @@ the renderer format.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup, code
 style, tests and workflow.
 
+See [doc/deployment.md](doc/deployment.md) for production setup and
+HTTP caching notes.
+
 ## Architecture
 
 See `doc/adr/` for architecture decisions. Start with

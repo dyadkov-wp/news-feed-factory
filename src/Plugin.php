@@ -223,6 +223,7 @@ final class Plugin {
 		}
 
 		header( 'Content-Type: ' . $response['content_type'] );
+		header( 'Cache-Control: public, max-age=300, s-maxage=300' );
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Body is XML already escaped by the renderer.
 		echo $response['body'];
