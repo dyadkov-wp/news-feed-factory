@@ -68,22 +68,23 @@ final class Collector {
 	 * @return array<int, array<string, mixed>> Raw items in contract shape.
 	 */
 	public function collect( array $args ): array {
-		$args = $this->prepare_args( $args );
-		$ids  = $this->query_post_ids( $args );
-		if ( array() === $ids ) {
+		$args  = $this->prepare_args( $args );
+		$posts = $this->query_posts( $args );
+		if ( array() === $posts ) {
 			return array();
+		}
+
+		$ids = array();
+		foreach ( $posts as $post ) {
+			$ids[] = (int) $post->ID;
 		}
 
 		$meta = $this->meta_repository->get_by_post_ids( $ids );
 
 		$items = array();
-		foreach ( $ids as $post_id ) {
+		foreach ( $posts as $post ) {
+			$post_id = (int) $post->ID;
 			if ( ! empty( $meta[ $post_id ]['exclude_from_feeds'] ) ) {
-				continue;
-			}
-
-			$post = get_post( $post_id );
-			if ( ! $post instanceof WP_Post ) {
 				continue;
 			}
 
@@ -150,19 +151,23 @@ final class Collector {
 	}
 
 	/**
-	 * Run WP_Query and return matched post IDs.
+	 * Run WP_Query and return matched posts.
+	 *
+	 * Post, meta and term caches are primed in batch: downstream
+	 * code calls get_post_thumbnail_id() and wp_get_post_terms() per
+	 * post, so priming all caches here turns N+1 into three batch
+	 * queries.
 	 *
 	 * @param array<string, mixed> $args Prepared args.
-	 * @return int[]
+	 * @return \WP_Post[]
 	 */
-	private function query_post_ids( array $args ): array {
+	private function query_posts( array $args ): array {
 		$query_args = array(
 			'post_type'              => 'post',
 			'post_status'            => 'publish',
-			'fields'                 => 'ids',
 			'no_found_rows'          => true,
-			'update_post_meta_cache' => false,
-			'update_post_term_cache' => false,
+			'update_post_meta_cache' => true,
+			'update_post_term_cache' => true,
 			'posts_per_page'         => $args['limit'] > 0 ? $args['limit'] : -1,
 		);
 
@@ -180,13 +185,13 @@ final class Collector {
 			$args['taxonomy_exclude']
 		);
 		if ( array() !== $tax_query ) {
-						// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Taxonomy filtering is the core feature; term_id-indexed queries on a news site are bounded by depth_hours.
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Taxonomy filtering is the core feature; term_id-indexed queries on a news site are bounded by depth_hours.
 			$query_args['tax_query'] = $tax_query;
 		}
 
 		$query = new \WP_Query( $query_args );
 
-		return array_map( 'intval', $query->posts );
+		return $query->posts;
 	}
 
 	/**
