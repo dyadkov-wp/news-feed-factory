@@ -42,8 +42,10 @@
 /.gitignore           export-ignore
 /.github/             export-ignore
 /.editorconfig        export-ignore
+/phpstan-bootstrap.php export-ignore
 
 /var/  export-ignore
+/tools/               export-ignore
 
 /vendor/              export-ignore
 /composer.json        export-ignore
@@ -56,6 +58,9 @@
 /tests/               export-ignore
 /doc/                 export-ignore
 
+/BACKLOG.md           export-ignore
+/CHANGELOG.md         export-ignore
+/CONTRIBUTING.md      export-ignore
 /README.md            export-ignore
 /build/               export-ignore
 
