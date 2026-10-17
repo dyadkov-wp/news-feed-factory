@@ -42,6 +42,38 @@ grep -rE 'expires|max-age|Cache-Control' /etc/angie/
 wp plugin list --status=active
 ```
 
+## Reverse proxies
+
+If the site sits behind one or more reverse proxies (CDN, Varnish,
+upstream nginx), any of them can override the plugin's
+`Cache-Control` header. Diagnose with:
+
+```bash
+curl -sI https://example.com/feed/yandex.xml | grep -iE 'via|x-cache|age|cache-control|server|x-'
+```
+
+Look for `via`, `x-cache`, `age`, `cf-cache-status`. These identify
+the layers. To find where `max-age` is set:
+
+- Owned proxies: `nginx -T | grep -B2 -A2 'expires\|Cache-Control'`
+  on each layer.
+- CDN: check the panel for cache rules on `/feed/*.xml`.
+
+Override on the proxy closest to the client:
+
+```nginx
+location ~ ^/feed/[^/]+\.xml$ {
+    proxy_pass <upstream>;
+    proxy_hide_header Cache-Control;
+    add_header Cache-Control "public, max-age=300, s-maxage=300" always;
+}
+```
+
+Without an override, Yandex will see new posts up to `max-age`
+seconds after publication. This is not a plugin bug: the plugin
+sends the correct header, but shared caches in front of the site
+have the last word.
+
 ### Override in Angie / nginx
 
 When the server sets `expires` for all responses, add a location
