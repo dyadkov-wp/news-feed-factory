@@ -1,0 +1,20 @@
+<?php
+/**
+ * WP 6.4+ helper for emitting a warning through WP's logging pipeline.
+ *
+ * $function_name is a diagnostic label used for filtering in logs, not a
+ * callable: `'ClassName::privateMethod'` (as produced by __METHOD__ inside
+ * a private method) is not a valid callable-string in PHP, but it is a
+ * perfectly valid label. The upstream `@phpstan-param callable-string` is
+ * overly strict; the WP docs describe $function_name as a string.
+ *
+ * @param string $function_name The function name that triggered the error.
+ * @param string $message       The error message.
+ * @param int    $error_level   The error level.
+ * @return void
+ *
+ * @phpstan-param string $function_name
+ * @phpstan-param \E_USER_ERROR|\E_USER_WARNING|\E_USER_NOTICE|\E_USER_DEPRECATED $error_level
+ * @phpstan-return void
+ */
+function wp_trigger_error( $function_name, $message, $error_level = E_USER_NOTICE ) {}

@@ -14,6 +14,7 @@ use NWFF\Cache\TransientCache;
 use NWFF\Data\Collector;
 use NWFF\Data\MetaRepository;
 use NWFF\Feed\Endpoint;
+use NWFF\Render\Google\NewsSitemapRenderer;
 use NWFF\Install\Cron;
 use NWFF\Install\Schema;
 use NWFF\Normalize\ContentNormalizer;
@@ -239,7 +240,8 @@ final class Plugin {
 	 */
 	private static function make_renderers(): array {
 		return array(
-			'yandex' => new YandexRenderer( new GenreResolver(), new Truncator() ),
+			'yandex'      => new YandexRenderer( new GenreResolver(), new Truncator() ),
+			'google-news' => new NewsSitemapRenderer(),
 		);
 	}
 

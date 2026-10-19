@@ -13,6 +13,8 @@ parameters:
     bootstrapFiles:
         - phpstan-bootstrap.php
         - tests/phpstan-stubs/wp-test-case.php
+    stubFiles:
+        - tests/phpstan-stubs/wp-trigger-error.stub
     dynamicConstantNames:
         - NWFF_VERSION
         - NWFF_FILE
