@@ -19,13 +19,12 @@ use NWFF\Normalize\ContentNormalizer;
 use NWFF\Normalize\HtmlSanitizer;
 use NWFF\Normalize\ImageExtractor;
 use NWFF\Normalize\Truncator;
-use NWFF\Render\Yandex\GenreResolver;
-use NWFF\Render\YandexRenderer;
+use NWFF\Plugin;
 use SimpleXMLElement;
 use WP_UnitTestCase;
 
 /**
- * Covers Endpoint::serve() against real Collector and YandexRenderer.
+ * Covers Endpoint::serve() against the real Collector and both renderers.
  *
  * @group integration
  */
@@ -39,7 +38,7 @@ final class EndpointTest extends WP_UnitTestCase {
 	private Endpoint $endpoint;
 
 	/**
-	 * Enabled settings for the yandex renderer.
+	 * Enabled settings for both renderers.
 	 *
 	 * @var array<string, mixed>
 	 */
@@ -60,7 +59,7 @@ final class EndpointTest extends WP_UnitTestCase {
 				'cache_ttl'   => 5,
 			),
 			'renderers' => array(
-				'yandex' => array(
+				'yandex'      => array(
 					'enabled'            => true,
 					'tag_interview'      => 0,
 					'tag_article'        => 0,
@@ -69,13 +68,18 @@ final class EndpointTest extends WP_UnitTestCase {
 					'include_taxonomies' => '',
 					'exclude_taxonomies' => '',
 				),
+				'google-news' => array(
+					'enabled'               => true,
+					'news_publication_name' => 'Test Publication',
+					'news_language'         => 'ru',
+					'include_taxonomies'    => '',
+					'exclude_taxonomies'    => '',
+				),
 			),
 		);
 
 		$this->endpoint = new Endpoint(
-			array(
-				'yandex' => new YandexRenderer( new GenreResolver(), new Truncator() ),
-			),
+			Plugin::renderers(),
 			new Collector( new MetaRepository(), new ImageExtractor(), new HtmlSanitizer() ),
 			new ContentNormalizer( new HtmlSanitizer(), new Truncator() ),
 			new TransientCache()
@@ -85,13 +89,14 @@ final class EndpointTest extends WP_UnitTestCase {
 	/**
 	 * Create a published post.
 	 *
+	 * @param int $age_seconds Age of the post, in seconds. Default one hour.
 	 * @return int Post ID.
 	 */
-	private function make_post(): int {
+	private function make_post( int $age_seconds = HOUR_IN_SECONDS ): int {
 		return (int) self::factory()->post->create(
 			array(
 				'post_status'   => 'publish',
-				'post_date_gmt' => gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ),
+				'post_date_gmt' => gmdate( 'Y-m-d H:i:s', time() - $age_seconds ),
 				'post_content'  => '<p>Body</p>',
 				'post_title'    => 'Title',
 				'post_excerpt'  => 'Teaser',
@@ -117,12 +122,37 @@ final class EndpointTest extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Plugin::renderers() registers both renderers under their slugs.
+	 *
+	 * @return void
+	 */
+	public function test_plugin_registers_yandex_and_google_news(): void {
+		$renderers = Plugin::renderers();
+
+		$this->assertArrayHasKey( 'yandex', $renderers );
+		$this->assertArrayHasKey( 'google-news', $renderers );
+		$this->assertSame( 'yandex', $renderers['yandex']->get_slug() );
+		$this->assertSame( 'google-news', $renderers['google-news']->get_slug() );
+	}
+
+	/**
 	 * An unknown slug returns null.
 	 *
 	 * @return void
 	 */
 	public function test_unknown_slug_returns_null(): void {
 		$this->assertNull( $this->endpoint->serve( 'unknown', $this->settings ) );
+	}
+
+	/**
+	 * A disabled renderer returns null.
+	 *
+	 * @return void
+	 */
+	public function test_disabled_renderer_returns_null(): void {
+		$this->settings['renderers']['yandex']['enabled'] = false;
+
+		$this->assertNull( $this->endpoint->serve( 'yandex', $this->settings ) );
 	}
 
 	/**
@@ -136,8 +166,6 @@ final class EndpointTest extends WP_UnitTestCase {
 		$response = $this->endpoint->serve( 'yandex', $this->settings );
 
 		$this->assertIsArray( $response );
-		$this->assertArrayHasKey( 'body', $response );
-		$this->assertArrayHasKey( 'content_type', $response );
 		$this->assertSame( 'application/rss+xml; charset=UTF-8', $response['content_type'] );
 
 		$rss = $this->parse( $response['body'] );
@@ -146,11 +174,11 @@ final class EndpointTest extends WP_UnitTestCase {
 	}
 
 	/**
-	 * An empty feed returns valid RSS without items.
+	 * An empty yandex feed returns valid RSS without items.
 	 *
 	 * @return void
 	 */
-	public function test_empty_feed_returns_valid_rss(): void {
+	public function test_empty_yandex_feed_returns_valid_rss(): void {
 		$response = $this->endpoint->serve( 'yandex', $this->settings );
 
 		$this->assertIsArray( $response );
@@ -173,14 +201,63 @@ final class EndpointTest extends WP_UnitTestCase {
 		$this->assertIsArray( $second );
 		$this->assertSame( $first['body'], $second['body'] );
 	}
+
 	/**
-	 * A disabled renderer returns null.
+	 * The google-news slug returns a sitemap with one <url> per post.
 	 *
 	 * @return void
 	 */
-	public function test_disabled_renderer_returns_null(): void {
-		$this->settings['renderers']['yandex']['enabled'] = false;
+	public function test_google_news_slug_returns_sitemap(): void {
+		$this->make_post();
 
-		$this->assertNull( $this->endpoint->serve( 'yandex', $this->settings ) );
+		$response = $this->endpoint->serve( 'google-news', $this->settings );
+
+		$this->assertIsArray( $response );
+		$this->assertSame( 'application/xml; charset=UTF-8', $response['content_type'] );
+
+		$doc = $this->parse( $response['body'] );
+		$this->assertSame( 'urlset', $doc->getName() );
+		$this->assertCount( 1, $doc->url );
+	}
+
+	/**
+	 * An empty google-news feed returns a valid urlset without <url> blocks.
+	 *
+	 * @return void
+	 */
+	public function test_google_news_empty_feed_returns_empty_urlset(): void {
+		$response = $this->endpoint->serve( 'google-news', $this->settings );
+
+		$this->assertIsArray( $response );
+		$doc = $this->parse( $response['body'] );
+		$this->assertSame( 'urlset', $doc->getName() );
+		$this->assertCount( 0, $doc->url );
+	}
+
+	/**
+	 * A disabled google-news renderer returns null.
+	 *
+	 * @return void
+	 */
+	public function test_google_news_disabled_returns_null(): void {
+		$this->settings['renderers']['google-news']['enabled'] = false;
+
+		$this->assertNull( $this->endpoint->serve( 'google-news', $this->settings ) );
+	}
+
+	/**
+	 * Posts older than core depth_hours are excluded from the sitemap.
+	 *
+	 * @return void
+	 */
+	public function test_google_news_excludes_posts_outside_depth_hours(): void {
+		$this->make_post( HOUR_IN_SECONDS );     // within 4h window.
+		$this->make_post( 6 * HOUR_IN_SECONDS ); // outside 4h window.
+
+		$response = $this->endpoint->serve( 'google-news', $this->settings );
+
+		$this->assertIsArray( $response );
+		$doc = $this->parse( $response['body'] );
+		$this->assertCount( 1, $doc->url );
 	}
 }
