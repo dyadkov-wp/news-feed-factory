@@ -275,3 +275,41 @@ ADR-ARCH-0004 — по экземпляру в каждом рендере.
   см. TD-12).
 
 **Когда делать.** При срабатывании одного из условий.
+
+### TD-19: Инвалидация транзиентов при изменении nwff_settings
+
+**Контекст.** `TransientCache` инвалидируется только на `save_post`,
+`deleted_post`, `set_object_terms` (ADR-ARCH-0001). Смена `nwff_settings`
+через `update_option_nwff_settings` не сбрасывает транзиенты
+`nwff_feed_*`. После изменения `depth_hours`, `cache_ttl`,
+`include_taxonomies`/`exclude_taxonomies` рендера — старый XML
+отдаётся до истечения `cache_ttl` (по умолчанию 5 минут, но может
+быть увеличено).
+
+**Симптом.** Пользователь меняет `depth_hours` 4 → 12, сохраняет,
+открывает фид — видит старое окно 4h. Через `cache_ttl` минут —
+правильное. Сбивает с толку при верификации изменений.
+
+**Что не затронуто.** `feed_slug` — смена даёт новый URL, старые
+транзиенты становятся сиротами (истекают естественно, не мешают).
+`enabled` — `Endpoint::serve()` проверяет `is_enabled()` до чтения
+кэша, выключенный рендер отдаёт `null` независимо от транзиента.
+
+**Что делать потом.** В `Plugin::on_settings_updated()` (уже
+подписан на `update_option_nwff_settings`, сейчас обрабатывает
+только смену `feed_slug` и вызывает `flush_rewrite_rules()`)
+добавить `TransientCache::delete_by_prefix()` при изменении любого
+поля, влияющего на сборку или рендер: `core.depth_hours`,
+`core.cache_ttl`, `renderers.*.include_taxonomies`,
+`renderers.*.exclude_taxonomies`. Проще — инвалидировать при любом
+изменении `nwff_settings` (`DELETE` по `wp_options` дёшев,
+overhead одного `LIKE`-запроса пренебрежим при редкой записи опции).
+
+**Условия активации:**
+
+- Первая жалоба «поменял настройки — фид старый», **ИЛИ**
+- При следующем касании `Plugin::on_settings_updated()` или
+  `Settings\Page`.
+
+**Когда делать.** При срабатывании одного из условий. Отдельный
+коммит `fix(cache): invalidate feed transients on settings change`.
