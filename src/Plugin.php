@@ -50,7 +50,7 @@ final class Plugin {
 	 */
 	public static function init(): void {
 		add_action( 'init', array( self::class, 'register_rewrite_rules' ) );
-		add_action( 'template_redirect', array( self::class, 'handle_feed_request' ) );
+		add_action( 'template_redirect', array( self::class, 'handle_feed_request' ), 9 );
 		add_action( 'save_post_post', array( self::class, 'on_save_post' ) );
 		add_action( 'deleted_post', array( self::class, 'on_deleted_post' ), 10, 2 );
 		add_action( 'set_object_terms', array( self::class, 'on_set_object_terms' ) );
@@ -195,7 +195,7 @@ final class Plugin {
 
 		add_rewrite_tag( '%' . self::QUERY_VAR . '%', '([^/]+)' );
 		add_rewrite_rule(
-			'^' . $slug . '/([^/]+)\.xml$',
+			'^' . $slug . '/([^/]+)\.xml/?$',
 			'index.php?' . self::QUERY_VAR . '=$matches[1]',
 			'top'
 		);

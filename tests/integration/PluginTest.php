@@ -70,7 +70,7 @@ final class PluginTest extends WP_UnitTestCase {
 		Plugin::register_rewrite_rules();
 
 		global $wp_rewrite;
-		$this->assertArrayHasKey( '^feed/([^/]+)\.xml$', $wp_rewrite->extra_rules_top );
+		$this->assertArrayHasKey( '^feed/([^/]+)\.xml/?$', $wp_rewrite->extra_rules_top );
 	}
 	/**
 	 * Init registers the save_post_post cache-invalidation hook.
