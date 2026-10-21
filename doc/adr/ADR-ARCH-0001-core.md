@@ -15,8 +15,8 @@
 потянет за собой свою логику выборки и кэша, и ядро расползётся.
 
 Этот ADR покрывает **ядро**. Нормализация контента — `ADR-ARCH-0002`.
-Специфика форматов — отдельные ADR: `ADR-ARCH-0003` (Яндекс),
-`ADR-ARCH-0004` (Google, TBD), `ADR-ARCH-0005` (Дзен, TBD).
+Специфика форматов — отдельные ADR: `ADR-ARCH-0003` (Яндекс, Proposed),
+`ADR-ARCH-0004` (Google, Proposed), `ADR-ARCH-0005` (Дзен, Proposed).
 
 ## Решение
 
@@ -370,12 +370,13 @@ Bootstrap-файлы — по ADR-PROC-0004.
 - **Зависит от:** ADR-PRODUCT-0001 (продукт News Feed Factory),
   ADR-PROC-0001 (рабочий цикл), ADR-PROC-0002 (документация и ADR).
 - **Уточняется в:** ADR-ARCH-0002 (нормализация контента),
-  ADR-ARCH-0003 (рендерер Яндекса), ADR-ARCH-0004 (рендерер Google, TBD),
-  ADR-ARCH-0005 (рендерер Дзена, TBD),
-  ADR-ARCH-0006 (настройки и конфигурация рендеров).
+  ADR-ARCH-0003 (рендерер Яндекса, Proposed),
+  ADR-ARCH-0004 (рендерер Google, Proposed),
+  ADR-ARCH-0005 (рендерер Дзена, Proposed),
+  ADR-ARCH-0006 (настройки и конфигурация рендеров, Proposed).
 - **Связано с:** ADR-PROC-0003 (git-workflow),
-  ADR-PROC-0004 (раздельные bootstrap'ы),
-  ADR-PROC-0005 (запрет ABSPATH-guard в `src/`).
+  ADR-PROC-0004 (раздельные bootstrap', TBD),
+  ADR-PROC-0005 (запрет ABSPATH-guard в `src/`, Proposed).
 
 ## Открытые вопросы
 

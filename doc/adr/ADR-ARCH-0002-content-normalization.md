@@ -542,8 +542,8 @@ ADR-ARCH-0003). Пост без id/link/title/даты — не публикуе
 - **Зависит от:** ADR-PRODUCT-0001 (продукт), ADR-ARCH-0001 (ядро),
   ADR-PROC-0001 (рабочий цикл), ADR-PROC-0002 (документация и ADR).
 - **Уточняется в:** ADR-ARCH-0003 (рендерер Яндекса — задаёт свой
-  `get_normalization_config()`), ADR-ARCH-0004 (Google, TBD),
-  ADR-ARCH-0005 (Дзен, TBD).
+  `get_normalization_config()`), ADR-ARCH-0004 (Google, Proposed),
+  ADR-ARCH-0005 (Дзен, Proposed).
 - **Связано с:** нет.
 
 ## Открытые вопросы
