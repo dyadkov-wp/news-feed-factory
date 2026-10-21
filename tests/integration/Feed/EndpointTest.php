@@ -260,4 +260,21 @@ final class EndpointTest extends WP_UnitTestCase {
 		$doc = $this->parse( $response['body'] );
 		$this->assertCount( 1, $doc->url );
 	}
+
+	/**
+	 * Channel language is normalized to ISO 639-1 (region stripped).
+	 *
+	 * @return void
+	 */
+	public function test_channel_language_is_iso_639_1_prefix(): void {
+		$this->make_post();
+
+		$response = $this->endpoint->serve( 'yandex', $this->settings );
+		$this->assertIsArray( $response );
+
+		$rss = $this->parse( $response['body'] );
+
+		// WP test env: get_bloginfo('language') = 'en_US' → 'en'.
+		$this->assertSame( 'en', (string) $rss->channel->language );
+	}
 }

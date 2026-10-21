@@ -228,7 +228,7 @@ final class Endpoint {
 			'title'       => (string) get_bloginfo( 'name' ),
 			'link'        => (string) home_url( '/' ),
 			'description' => (string) get_bloginfo( 'description' ),
-			'language'    => (string) get_bloginfo( 'language' ),
+			'language'    => substr( (string) get_bloginfo( 'language' ), 0, 2 ),
 		);
 	}
 }
