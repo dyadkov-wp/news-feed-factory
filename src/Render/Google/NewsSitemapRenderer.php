@@ -149,8 +149,9 @@ final class NewsSitemapRenderer implements RendererInterface {
 	 * @param array<string, mixed>             $args  Collector args (unused by this renderer).
 	 */
 	public function render( array $items, array $args ): string {
-		$settings          = $this->read_settings();
-		$renderer_settings = $settings['renderers'][ $this->get_slug() ] ?? array();
+		$renderer_settings = is_array( $args['settings'] ?? null )
+			? $args['settings']
+			: ( $this->read_settings()['renderers'][ $this->get_slug() ] ?? array() );
 
 		$name     = $this->resolve_name( (string) ( $renderer_settings['news_publication_name'] ?? '' ) );
 		$language = $this->resolve_language( (string) ( $renderer_settings['news_language'] ?? '' ) );
