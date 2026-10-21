@@ -54,6 +54,29 @@ interface RendererInterface {
 включён ли он, какие посты ему нужны. Ядро не знает о конкретных
 рендерах; оно только передаёт им `$settings` и получает ответы.
 
+### Контракт `$args` в `render()`
+
+`Endpoint::serve()` формирует `$args` и передаёт в
+`RendererInterface::render( $items, $args )`. Гарантированные ключи:
+
+- **`channel`** — `title`, `link`, `description`, `language`
+  (из `Endpoint::channel()`; `language` — ISO 639-1, регион отброшен).
+- **`settings`** — **секция рендера** `nwff_settings['renderers'][ slug ]`,
+  не полный массив. Рендер **не должен** читать
+  `get_option('nwff_settings')` напрямую: это нарушает контракт и делает
+  unit-тесты зависимыми от БД.
+- **`normalization_config`** — из `get_normalization_config()` рендера
+  (кладётся в `$args` до вызова `render()`, используется
+  `collect_and_normalize()`, не рендером напрямую).
+
+**Почему.** До этого ADR наблюдалась асимметрия: `YandexRenderer`
+читал `$args['settings']` (секцию), `NewsSitemapRenderer` —
+`get_option()` напрямую через `read_settings()` (полный массив). Формы
+разные → при передаче секции Google терял `news_publication_name` и
+`news_language` (регрессия, поймана при синхронизации с Dzen-контрактом).
+При добавлении третьего рендера (Dzen) контракт фиксируется здесь,
+чтобы не размножать паттерн.
+
 ### Форма настроек
 
 Одна опция `nwff_settings`, разделённая на два уровня:
