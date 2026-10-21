@@ -45,6 +45,8 @@
 | [ADR-PROC-0001](ADR-PROC-0001-workflow.md) | Рабочий цикл — проблема → тест → фикс | Proposed | 2026-10-02 | 2026-10-02 |
 | [ADR-PROC-0002](ADR-PROC-0002-docs-and-adr.md) | Документация проекта и ADR | Proposed | 2026-10-02 | 2026-10-02 |
 | [ADR-PROC-0003](ADR-PROC-0003-git-workflow.md) | Git-workflow | Proposed | 2026-10-02 | 2026-10-14 |
+| [ADR-PROC-0004](ADR-PROC-0004-test-bootstrap.md) | Раздельные bootstrap'ы для unit- и integration-тестов | Proposed | 2026-10-09 | 2026-10-09 |
+| [ADR-PROC-0005](ADR-PROC-0005-no-abspath-guard-in-src.md) | Запрет ABSPATH-guard в классах src/ | Proposed | 2026-10-09 | 2026-10-09 |
 
 ## TBD
 
