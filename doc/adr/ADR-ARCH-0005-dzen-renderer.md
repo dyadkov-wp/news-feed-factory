@@ -375,6 +375,8 @@ Yandex с пустым title). Пустой фид — валидный `<rss><c
 - **Известные ограничения:** транзиент до 9.5МБ в `wp_options`
   (без object cache — заметное чтение; при TTL 5 мин не блокер);
   peak memory ~30МБ при сборке + записи.
+- **Движок `ContentProcessor`:** `DOMDocument` (ext-dom), см. подсекцию
+  «Движок: DOMDocument». Внутри — никаких WP-функций (pure function).
 
 ## Тесты
 
@@ -421,13 +423,216 @@ Yandex с пустым title). Пустой фид — валидный `<rss><c
 
 ### Unit
 
-- **`ContentProcessor`:**
+#### ContentProcessor:
   - разрешённые/запрещённые теги;
   - `em→i`, `strong→b`;
   - `<figure>`-обёртка (одиночный `<img>` / уже в `<figure>`);
   - `]]>`-escape;
   - пустой вход → пустой выход (сигнал для skip item).
-- **`EnclosureResolver`:**
+
+#### Движок: DOMDocument
+
+Реализация — на нативном `DOMDocument` (`ext-dom`, PHP 8.3). Внутри
+`ContentProcessor` — **никаких WP-функций** (`wp_kses`, `wp_check_filetype`,
+`apply_filters`, `do_action`): контракт «pure function, no WP side effects»,
+unit-бутстрап — чистый PHPUnit (без WP). Вход уже прошёл
+`HtmlSanitizer::sanitize(null)` → `wp_kses_post` в `Collector`/`ContentNormalizer`.
+
+**Шесть ловушек DOMDocument — все обязательны, иначе баги:**
+
+**Л1. UTF-8 — через XML-префикс, не `mb_convert_encoding`.**
+`DOMDocument::loadHTML()` на PHP 8.3 без объявления кодировки режет
+кириллицу. `mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8')`
+deprecated с PHP 8.2 (warning). Обход — префикс `<?xml encoding="UTF-8">`:
+
+```php
+$dom  = new \DOMDocument( '1.0', 'UTF-8' );
+$prev = libxml_use_internal_errors( true );
+$dom->loadHTML(
+    '<?xml encoding="UTF-8">' . $html,
+    LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+);
+libxml_clear_errors();
+libxml_use_internal_errors( $prev );
+```
+
+PI **обязательно** удалить до `saveHTML()`, иначе утечёт в `content:encoded`:
+
+```php
+foreach ( iterator_to_array( $dom->childNodes ) as $node ) {
+    if ( $node instanceof \DOMProcessingInstruction ) {
+        $dom->removeChild( $node );
+    }
+}
+```
+
+`LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD` — оба обязательны: первый
+убирает `<html><body>`, второй — `<!DOCTYPE>`.
+
+**Л2. Live `NodeList` — snapshot через `iterator_to_array()` на каждом
+`getElementsByTagName()`.**
+`getElementsByTagName()` возвращает live `DOMNodeList`: при модификации
+дерева список обновляется в момент итерации (пропуски, двойные удаления,
+бесконечные циклы). Правило — **любая** итерация по `getElementsByTagName()`
+с модификацией дерева: `iterator_to_array()`. Не только для `<img>`.
+
+**Л3. `em → i`, `strong → b` — кастомный `rename_element`, не `str_ireplace`.**
+В PHP DOM нет `renameNode()` (в отличие от Java DOM). Переименование —
+create+attrs+move+replace:
+
+```php
+private function rename_element( \DOMDocument $dom, \DOMElement $old, string $tag ): \DOMElement {
+    $new = $dom->createElement( $tag );
+    foreach ( $old->attributes as $attr ) {
+        $new->setAttribute( $attr->name, $attr->value );
+    }
+    while ( $old->firstChild ) {
+        $new->appendChild( $old->firstChild );
+    }
+    $old->parentNode->replaceChild( $new, $old );
+    return $new;
+}
+```
+
+Порядок: сначала атрибуты, потом дети. **Не** `str_ireplace('<em>', '<i>', ...)`
+до парсинга — ломается на `<em class="x">`, вложенности, `<em>` в тексте.
+
+**Л4. `saveHTML()` — по `childNodes` корня, не весь документ.**
+`saveHTML()` без аргументов сериализует документ целиком; с
+`LIBXML_HTML_NOIMPLIED` обычно ок, но есть артефакты (`<br>` без закрытия,
+entities). Надёжнее — обход:
+
+```php
+$out = '';
+foreach ( iterator_to_array( $dom->childNodes ) as $node ) {
+    $out .= $dom->saveHTML( $node );
+}
+```
+
+**Л5. figure-wrap — проверка прямого родителя, идемпотентность.**
+
+```php
+foreach ( iterator_to_array( $dom->getElementsByTagName( 'img' ) ) as $img ) {
+    $parent = $img->parentNode;
+    if ( $parent instanceof \DOMElement && 'figure' === $parent->tagName ) {
+        continue;
+    }
+    $figure = $dom->createElement( 'figure' );
+    $parent->replaceChild( $figure, $img );
+    $figure->appendChild( $img );
+}
+```
+
+`parentNode->tagName === 'figure'` — прямой родитель, не «где-то выше».
+Второй прогон видит `<img>` внутри `<figure>` и пропускает.
+
+**Л6. Тесты — `canonicalize` + `assertSame`, не `assertStringContainsString`.**
+`assertStringContainsString` нестабилен: порядок атрибутов, кавычки,
+пробелы, `<br>` vs `<br/>`. Каноническое представление:
+
+```php
+private function canonicalize( string $html ): array {
+    $dom = new \DOMDocument();
+    $dom->loadHTML(
+        '<?xml encoding="UTF-8">' . $html,
+        LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+    );
+    return $this->node_to_array( $dom->documentElement );
+}
+
+private function node_to_array( \DOMNode $node ): array {
+    $result = [ 'tag' => $node->nodeName, 'attrs' => [], 'children' => [] ];
+    if ( $node instanceof \DOMElement ) {
+        $attrs = [];
+        foreach ( $node->attributes as $attr ) {
+            $attrs[ $attr->name ] = $attr->value;
+        }
+        ksort( $attrs );
+        $result['attrs'] = $attrs;
+    }
+    foreach ( $node->childNodes as $child ) {
+        $result['children'][] = $this->node_to_array( $child );
+    }
+    return $result;
+}
+```
+
+`assertSame(canonicalize($expected), canonicalize($actual))`.
+`assertStringContainsString` — только для presence-checks.
+
+**Исключение — CDATA-escape.** `]]>`-escape идёт над сериализованной строкой;
+canonicalize парсит HTML заново — `]]]]><![CDATA[>` в тексте превращается
+в мусор или валит libxml. Тест — `assertSame` на raw string:
+
+```php
+$this->assertSame( 'foo ]]]]><![CDATA[> bar', $processor->process( 'foo ]]> bar' ) );
+```
+
+**Не унифицировать** с остальными тестами `ContentProcessor`.
+
+**Порядок операций в `process()` — фиксирован:**
+
+```text
+1. trim($html) === '' → return ''
+2. loadHTML + удаление PI
+3. removeForbidden([script, style, iframe, form, input])     — cut with content
+4. unwrap([div, span, h5, h6])                                — preserve content
+5. unwrapEmptyFigure()                                        — figure без img/figcaption
+6. renameElement([em → i, strong → b])
+7. wrapImgInFigure()                                          — каждый img, если parent != figure
+8. saveHTML($node) по childNodes корня → concat $out
+9. str_replace(']]>', ']]]]><![CDATA[>', $out)
+10. trim($out) === '' → return '' : return $out
+```
+
+Обоснования порядка:
+
+- **3 → 4:** `<script>` внутри `<div>` при unwrap `<div>` всплывёт наверх.
+  Режем до unwrap — меньше дерево для последующих операций.
+- **5 → 7:** `unwrapEmptyFigure` проверяет «есть ли в figure `img` или
+  `figcaption`». После 7 у каждой figure есть `img` — пустые уже не
+  развернутся.
+- **6 → 7:** к моменту сериализации все теги финальные. Обратный порядок
+  даст тот же результат, но 6→7 чище.
+- **9 после 8:** escape — над сериализованной строкой, не над деревом.
+
+**Семантические уточнения:**
+
+- **`div`/`span` — `unwrap`, не cut with content.** ADR п. 3 говорит
+  «вырезать `div`, `span`» — уточнение: тег убрать, содержимое сохранить.
+  Cut with content на WP-разметке (типичный `<div>` вокруг абзацев) снесёт
+  текст статьи. `script/style/iframe/form/input` — cut with content
+  (однозначно).
+- **`script/style` + `form/input/iframe` — defense in depth.**
+  `wp_kses_post` уже режет `script/style` с содержимым, но `form/input/iframe`
+  оставляет inner. Cut-with-content в `ContentProcessor` — страховка на
+  случай отключённого/пропущенного upstream-санитайза.
+- **`h5`/`h6` — `unwrap`.** ADR разрешает `h1–h4`. Понижать до `h4` —
+  семантическое преобразование, которого никто не просил. Дефолт — unwrap.
+- **`<figure>` без `img`/`figcaption` — `unwrap`.** Бессмысленная
+  конструкция. Если внутри есть `img` **или** `figcaption` — оставить
+  (`figcaption` без `figure` невалиден).
+- **`<a><figure><img></figure></a>` — принятое поведение.** HTML5-валидно
+  (`<a>` — transparent content model, допускает flow content, `<figure>` —
+  flow). Кликабельность сохраняется. Если Дзен отклонит — TD, не менять
+  сейчас.
+- **`process()` возвращает `string`, не `?string`.** Пустой результат —
+  `''`, не `null`. Политика пропуска item — в `DzenRenderer::render_item()`,
+  не в процессоре.
+
+**Почему не альтернативы:**
+
+- **Regex** — `<figure>`-wrap требует «найти `<img>` не внутри `<figure>`» —
+  переменный lookbehind по вложенности, PCRE не поддерживает; эмуляция
+  через стек — это уже парсер (хуже DOM). Регекс на HTML — гарантированные
+  баги на `<img>` в атрибутах, комментариях, CDATA.
+- **`WP_HTML_Tag_Processor`** (WP 6.2+) — лёгкий, но не реструктурирует
+  DOM: не может обернуть `<img>` в `<figure>`, переименовать `<em>` в `<i>`.
+- **HTML5-PHP** (`masterminds/html5`) — composer-зависимость. ADR-ARCH-0003
+  уже отказался от внешних зависимостей для XML; тот же аргумент для HTML.
+- **`Dom\HTMLDocument`** (PHP 8.4) — лучше по спеке, но среда — PHP 8.3.
+
+#### EnclosureResolver:
   - featured есть → `url`/`type`/`length` корректны;
   - featured меньше 480 × 320 → `null`;
   - featured нет → `null` (без fallback, TD-05);
@@ -437,9 +642,9 @@ Yandex с пустым title). Пустой фид — валидный `<rss><c
 
 ## Открытые вопросы
 
-1. **`contentType` по умолчанию** — `news_only` (уводящая на сайт)
-   или `news` (бесшовное потребление). Для oblgazeta.ru, вероятно,
-   `news_only`; продуктовое решение — подтвердить у редакции или у Дзена.
+1. **`contentType` по умолчанию** — **ЗАКРЫТ 2026-10-21:** `news_only`
+   (уводящая на сайт) — принятое значение по ответу Дзена. Бесшовное
+   потребление (`news`) — TD, не v1.
 2. **Валидатор Дзена** — ждать, как с Яндексом. Итерация после первого
    crawl: возможны ошибки формата, не видимые в спеке.
 
