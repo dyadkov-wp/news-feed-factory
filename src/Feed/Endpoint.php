@@ -224,11 +224,13 @@ final class Endpoint {
 	 * @return array<string, string>
 	 */
 	private function channel(): array {
+		$language = substr( (string) get_bloginfo( 'language' ), 0, 2 );
+
 		return array(
 			'title'       => (string) get_bloginfo( 'name' ),
 			'link'        => (string) home_url( '/' ),
 			'description' => (string) get_bloginfo( 'description' ),
-			'language'    => substr( (string) get_bloginfo( 'language' ), 0, 2 ),
+			'language'    => '' !== $language ? $language : 'ru',
 		);
 	}
 }

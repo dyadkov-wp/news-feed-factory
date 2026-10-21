@@ -262,19 +262,37 @@ final class EndpointTest extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Channel language is normalized to ISO 639-1 (region stripped).
+	 * Tests that channel language is a two-letter ISO 639-1 code.
 	 *
 	 * @return void
 	 */
-	public function test_channel_language_is_iso_639_1_prefix(): void {
+	public function test_channel_language_is_iso_639_1(): void {
+		$this->make_post();
+
+		$response = $this->endpoint->serve( 'yandex', $this->settings );
+		$this->assertIsArray( $response );
+
+		$rss  = $this->parse( $response['body'] );
+		$lang = (string) $rss->channel->language;
+
+		$this->assertMatchesRegularExpression( '/^[a-z]{2}$/', $lang );
+	}
+
+	/**
+	 * Tests that channel language falls back to "ru" when WPLANG is empty.
+	 *
+	 * @return void
+	 */
+	public function test_channel_language_falls_back_to_ru_when_empty(): void {
+		add_filter( 'pre_option_WPLANG', static fn(): string => '' );
 		$this->make_post();
 
 		$response = $this->endpoint->serve( 'yandex', $this->settings );
 		$this->assertIsArray( $response );
 
 		$rss = $this->parse( $response['body'] );
+		$this->assertSame( 'ru', (string) $rss->channel->language );
 
-		// WP test env: get_bloginfo('language') = 'en_US' → 'en'.
-		$this->assertSame( 'en', (string) $rss->channel->language );
+		remove_all_filters( 'pre_option_WPLANG' );
 	}
 }
