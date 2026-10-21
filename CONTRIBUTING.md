@@ -386,6 +386,17 @@ Start with:
 - `doc/adr/ADR-PRODUCT-0001-news-feed-factory.md`
 - `doc/adr/ADR-ARCH-0001-core.md`
 
+### Before adding a renderer
+
+When adding a renderer (or another implementer of an existing
+interface), grep-audit existing implementers first and pin the
+contract with a test:
+
+- see ADR-PROC-0001 § "Anti-drift: сверка ADR ↔ код" for the
+  grep-audit and audit triggers;
+- see ADR-ARCH-0006 § "Контракт `$args`" for the `$args['settings']`
+  contract (pinned by a test, passed explicitly in unit tests).
+
 ## Composer and network issues
 
 ### Mirrors
