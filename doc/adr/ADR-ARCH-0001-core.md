@@ -167,8 +167,8 @@ default `0`, и SQL-условие выборки в `Collector` остаётс�
    при идентичной семантике.
 2. `WP_Query` с параметрами: `post_type=post`, `post_status=publish`,
    `date_query` (по `depth_hours`), `tax_query` (если задано),
-   `fields=ids`, `no_found_rows=true`, `update_post_meta_cache=false`,
-   `update_post_term_cache=false`.
+    `fields=ids`, `no_found_rows=true`, `update_post_meta_cache=true`,
+    `update_post_term_cache=true`.
 3. Если ID пусто — возврат пустого массива.
 4. `MetaRepository::get_by_post_ids( $ids )` — один SQL-запрос через
    `$wpdb->prepare` с `IN (...)`. При необходимости — chunking по 500 ID.
@@ -179,7 +179,10 @@ default `0`, и SQL-условие выборки в `Collector` остаётс�
 7. Слияние и возврат массива `$raw`.
 
 **Обоснование:** один запрос к кастомной таблице вместо N+1; отключение
-`update_post_meta_cache` и `update_post_term_cache` — не тянем лишнее.
+`update_post_meta_cache` и `update_post_term_cache` — `true`: батч-прайм
+мета/термсов для всех собранных ID одним запросом. `fields=ids` возвращает
+только ID, поэтому lazy-load в нормализаторе дал бы N+1; прайм батчем —
+единственный способ получить мета и термсы без запроса на каждый пост.
 
 ### Кэширование
 
