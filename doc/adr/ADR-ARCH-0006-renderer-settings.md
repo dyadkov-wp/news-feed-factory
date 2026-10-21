@@ -60,11 +60,17 @@ interface RendererInterface {
 `RendererInterface::render( $items, $args )`. Гарантированные ключи:
 
 - **`channel`** — `title`, `link`, `description`, `language`
-  (из `Endpoint::channel()`; `language` — ISO 639-1, регион отброшен).
+  (из `Endpoint::channel()`; `language` — ISO 639-1, регион отброшен,
+  fallback ru при пустом).
 - **`settings`** — **секция рендера** `nwff_settings['renderers'][ slug ]`,
-  не полный массив. Рендер **не должен** читать
-  `get_option('nwff_settings')` напрямую: это нарушает контракт и делает
-  unit-тесты зависимыми от БД.
+  не полный массив. Рендер **не должен** читать `get_option('nwff_settings')`
+  напрямую в production-коде.
+  Допустимое исключение: инжектируемый провайдер (`settings_reader` в
+  конструкторе `NewsSitemapRenderer`) как fallback для unit-тестов, где
+  `$args['settings']` не передаётся. В production `Endpoint::serve()` всегда
+  передаёт секцию через `$args`; fallback не задействуется.
+  Кандидат в TD: удалить fallback (и провайдер) после перевода unit-тестов
+  на `$args['settings']`.
 - **`normalization_config`** — из `get_normalization_config()` рендера
   (кладётся в `$args` до вызова `render()`, используется
   `collect_and_normalize()`, не рендером напрямую).
