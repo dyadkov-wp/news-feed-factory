@@ -353,3 +353,67 @@ HTML5-валидно (transparent content model), кликабельность �
 
 **Когда делать.** Жалоба Дзен-валидатора на `<a>`-обёртку вокруг
 `<figure>`.
+
+### TD-23: `content_filters` — регистрация не реализована
+
+**Контекст.** ADR-ARCH-0002 (стр. 119, 130, 386, 413, 416, 466) описывает
+редакционные вырезы `content_filters` и регистрацию через
+`apply_filters('nwff_content_filters', ...)`. Ни `Collector`, ни
+`ContentNormalizer` этот фильтр не вызывают — механизм не работает.
+
+**Что делать потом.** Реализовать регистрацию через `apply_filters` +
+применение вырезов в `ContentNormalizer` (позиция — до/после `sanitize()`
+— уточнить в ADR), либо удалить описание из ADR-ARCH-0002.
+
+**Когда делать.** Перед первым релизом 0.1.0.
+
+### TD-24: `YandexRenderer` — тихий skip на невалидные items
+
+**Контекст.** ADR-ARCH-0003 требует WARNING при пропуске item без
+`title`/`link`/`published`. В коде (`src/Render/YandexRenderer.php:316-327`)
+— три тихих `return` без лога. `NewsSitemapRenderer` логирует корректно.
+
+**Что делать потом.** Добавить лог при каждом `return` в `render_item()`;
+формат — консистентно с `NewsSitemapRenderer`.
+
+**Когда делать.** Перед первым релизом 0.1.0.
+
+### TD-25: `HtmlSanitizer::to_plain` — блочные теги за пределами `p`/`div`
+
+**Контекст.** `to_plain()` превращает `<p>` и `<div>` в `\n\n`, остальные
+теги удаляет без разделителя. ADR-ARCH-0002 перечисляет `<p>`, `<div>`
+как блочные. Проверка реальной выдачи oblgazeta.ru (30 постов via REST
+API, `excerpt`): наблюдаемые блочные — `h1`, `p`, `figure`, `figcaption`,
+`div`. `h2`/`blockquote`/`ul`/`table` не встречаются.
+
+Потенциальная проблема: `figure`/`figcaption` не дают `\n\n` — текст
+`figcaption` может слипнуться со следующим `<p>`. Сейчас латентно:
+`excerpt` не используется в production-фидах (Yandex item — только
+`title/link/pubDate`, Google — `title`).
+
+**Что делать потом.** Добавить `h1-h6`, `blockquote`, `ul/ol/li`,
+`table`, `figure`, `figcaption` в блок-разделители (или обновить
+ADR-ARCH-0002 с явным решением «figure/figcaption — не блочные»).
+Тест: `<figure><figcaption>cap</figcaption></figure><p>text</p>` →
+`cap\n\ntext`.
+
+**Когда делать.** Триггер: `excerpt` начинает использоваться в
+production-рендере, ИЛИ жалоба на слипшиеся абзацы, ИЛИ появление
+`h2`/`blockquote`/`ul`/`table` в реальных excerpt.
+
+### TD-26: Перепроверить README.md, CHANGELOG.md, readme.txt перед релизом
+
+**Контекст.** Аудит перед 0.1.0:
+- `README.md` — «Google ... are planned», но Google уже реализован
+  (ADR-ARCH-0004 закрыт, в проде).
+- `CHANGELOG.md` — на русском (ADR-PROC-0002 требует английский), не
+  отражает Google-рендер.
+- `readme.txt` (WordPress.org) — теги/описание обещают Dzen и generic
+  RSS, которых нет в поставке. Риск отклонения на review.
+
+**Что делать потом.** Пройтись по трём файлам, привести к фактическому
+состоянию: `README.md` — статус Google/Dzen; `CHANGELOG.md` — перевод
+на английский + запись про Google; `readme.txt` — синхронизировать
+список рендеров и теги с реальностью.
+
+**Когда делать.** Перед первым публичным релизом 0.1.0.
