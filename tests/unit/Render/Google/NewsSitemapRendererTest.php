@@ -237,6 +237,35 @@ final class NewsSitemapRendererTest extends TestCase {
 	}
 
 	/**
+	 * Tests that $args['settings'] is treated as the renderer section.
+	 *
+	 * Regression: before the fix, the renderer treated $args['settings'] as the
+	 * full nwff_settings and looked up [renderers][slug] again — empty. Values
+	 * from $args['settings'] were silently dropped in favor of get_bloginfo()
+	 * fallbacks.
+	 */
+	public function test_render_uses_renderer_section_from_args_settings(): void {
+		$renderer = $this->make_renderer();
+
+		$xml = $renderer->render(
+			array( $this->make_item() ),
+			array(
+				'channel'  => array(
+					'title' => 'T',
+					'link'  => 'https://example.com',
+				),
+				'settings' => array(
+					'news_publication_name' => 'Args Publication',
+					'news_language'         => 'de',
+				),
+			)
+		);
+
+		$this->assertStringContainsString( 'Args Publication', $xml );
+		$this->assertStringContainsString( '<news:language>de</news:language>', $xml );
+	}
+
+	/**
 	 * Tests that language falls back to 'ru' without get_bloginfo.
 	 */
 	public function test_render_language_fallback_to_ru_without_bloginfo(): void {
