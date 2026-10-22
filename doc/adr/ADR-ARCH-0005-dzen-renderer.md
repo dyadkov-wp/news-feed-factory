@@ -2,7 +2,7 @@
 
 **Статус:** Proposed
 **Создано:** 2026-10-20
-**Обновлено:** 2026-10-20
+**Обновлено:** 2026-10-22
 
 ## Контекст
 
@@ -137,12 +137,22 @@ src/
 
 Задачи (один проход, без N+1):
 
-1. Разрешить только теги Дзена: `p`, `a`, `b`, `i`, `u`, `s`, `h1–h4`,
-   `blockquote`, `ul`/`ol`/`li`, `img`, `figure`, `figcaption`, `br`.
+1. **Whitelist, не «информационное описание».** В финальном фрагменте
+   допустимы **только** теги Дзена: `p`, `a`, `b`, `i`, `u`, `s`,
+   `h1–h4`, `blockquote`, `ul`/`ol`/`li`, `img`, `figure`, `figcaption`,
+   `br`. Всё, что не перечислено ниже как cut или rename и не входит
+   в этот список (`div`, `span`, `h5`, `h6`, `table`, `section`,
+   `article`, `aside`, `header`, `footer`, `nav`, `main`, `address`,
+   `dl`/`dt`/`dd`, …), — **unwrap**: тег убрать, содержимое сохранить.
+   `wp_kses_post` upstream пропускает многие из этих тегов; полагаться
+   на него как на gatekeeper нельзя — контракт держит `ContentProcessor`.
 2. Нормализовать `em → i`, `strong → b` (в `ContentProcessor`, **не**
    в `allowed_html`: `allowed_html = null` → `wp_kses_post`, который
    `em`/`strong` не режет, их заменит процессор).
-3. Вырезать `script`, `style`, `iframe`, `div`, `span`, `form`, `input`.
+3. **Cut with content:** `script`, `style`, `iframe`, `form`, `input`.
+   Для `script`/`style` это defense in depth поверх `wp_kses_post`;
+   для `iframe`/`form`/`input` — страховка на случай отключённого или
+   пропущенного upstream-санитайза.
 4. Обернуть одиночный `<img>` без родителя `<figure>` в
    `<figure>…</figure>`. Если родитель уже `<figure>` — не трогать.
 5. **Размеры `<img>` внутри content не проверять**: это N+1 запросов
@@ -152,6 +162,37 @@ src/
    Кандидат в TD-20: «если Дзен пожалуется на картинки в content».
 6. **CDATA escape:** `str_replace(']]>', ']]]]><![CDATA[>', $html)`
    (как Yandex).
+
+#### Политика атрибутов
+
+Фильтрация атрибутов — **blacklist, не whitelist**. Сохраняются все
+атрибуты исходного HTML на разрешённых тегах, кроме:
+
+- `style` — инлайн-стили отбрасываются всегда;
+- `on[a-z]+$` (case-insensitive, имя целиком) — event handlers:
+  `onclick`, `onload`, `onerror`, `onmouseover`, … Паттерн с якорем
+  `$` и `[a-z]+` намеренно не матчит кастомные атрибуты с дефисом
+  (`only-x`) и цифрами. Цена: `once`/`only`/`one` без дефиса стрипаются
+  как «похожие на handler» — компромисс в пользу defense in depth,
+  в стандартном HTML таких атрибутов нет, а новый `on*`-handler
+  в браузерах мы всё равно поймаем без обновления списка.
+
+Перечисленные выше `href`, `title`, `src`, `alt`, `width`, `height` —
+атрибуты, которые **обязаны пережить** обработку, а не единственные
+разрешённые. Blacklist выбран осознанно:
+
+- Dzen RSS 2.0 принимает произвольные атрибуты на разрешённых тегах;
+- whitelist пришлось бы держать синхронно между кодом, тестами и ADR —
+  лишний канал drift'а без выигрыша в безопасности (`style` и `on*` —
+  единственные классы атрибутов с реальным риском в этом фиде);
+- «лишние» безопасные атрибуты (`class`, `data-*`, `id`) на выходе не
+  ломают схему и не утекают в вёрстку Дзена.
+
+Регрессионные тесты:
+`ContentProcessorTest::test_allowed_attributes_are_preserved`,
+`ContentProcessorTest::test_event_and_style_attributes_are_removed`,
+`ContentProcessorTest::test_rename_keeps_attributes_and_children`,
+`ContentProcessorTest::test_attribute_starting_with_on_but_not_handler_is_preserved`.
 
 `content:encoded` **обязателен**: если `$item['content']` пуст или после
 `ContentProcessor` пуст — **пропускаем item с WARNING** (прецедент —
@@ -616,6 +657,22 @@ $this->assertSame( 'foo ]]]]><![CDATA[> bar', $processor->process( 'foo ]]> bar'
   (`<a>` — transparent content model, допускает flow content, `<figure>` —
   flow). Кликабельность сохраняется. Если Дзен отклонит — TD, не менять
   сейчас.
+- **`figcaption` вне `figure` — `unwrap`.** `figcaption` без `figure`
+  невалиден в HTML5. Отдельным шагом после `unwrap` figure без
+  `img`/`figcaption`: `figcaption` с родителем-не-`figure` разворачивается,
+  текст сохраняется. В `ContentProcessor` это
+  `unwrap_orphan_figcaptions()` — шаг, которого нет в п.1–6 выше, но
+  который прямо следует из валидности разметки.
+- **Idempotency не гарантирована для входа с `]]>`.** Escape
+  `]]]]><![CDATA[>` — валидная последовательность для CDATA-парсера,
+  но **не** для HTML-парсера: повторный проход `process()` видит `<!`
+  и трактует остаток как bogus comment. Это ограничение by design,
+  не баг: `ContentProcessor` вызывается один раз на item, а
+  `DzenRenderer` оборачивает результат в `<![CDATA[…]]>` и больше не
+  парсит. Зафиксировано тестом
+  `test_idempotency_does_not_hold_for_cdata_escape`. Если когда-нибудь
+  понадобится повторный прогон — отдельный TD на «escape после
+  финальной сериализации».
 - **`process()` возвращает `string`, не `?string`.** Пустой результат —
   `''`, не `null`. Политика пропуска item — в `DzenRenderer::render_item()`,
   не в процессоре.
