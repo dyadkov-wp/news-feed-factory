@@ -152,26 +152,30 @@ final class EnclosureResolverTest extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Unrecognized file type → null.
-	 *
-	 * WARNING goes to error_log; we do not assert on log output — the
-	 * contract is the null return. Spying on error_log from a test adds
-	 * set_error_handler() noise for no behavioral coverage.
+	 * Unrecognized file type → null, WARNING routed to the injected logger.
 	 *
 	 * @return void
 	 */
-	public function test_unrecognized_file_type_returns_null(): void {
+	public function test_unrecognized_file_type_returns_null_and_logs(): void {
 		$attachment_id = $this->make_attachment();
 		$item          = $this->item( $attachment_id, 'http://example.com/a.jpg' );
 
+		$messages = array();
+		$logger   = static function ( string $message ) use ( &$messages ): void {
+			$messages[] = $message;
+		};
+
 		add_filter( 'get_attached_file', '__return_false' );
 		try {
-			$result = ( new EnclosureResolver() )->resolve( $item );
+			$result = ( new EnclosureResolver( $logger ) )->resolve( $item );
 		} finally {
 			remove_filter( 'get_attached_file', '__return_false' );
 		}
 
 		$this->assertNull( $result );
+		$this->assertCount( 1, $messages );
+		$this->assertStringContainsString( 'attachment #' . $attachment_id, $messages[0] );
+		$this->assertStringContainsString( 'unrecognized file type', $messages[0] );
 	}
 
 	/**
