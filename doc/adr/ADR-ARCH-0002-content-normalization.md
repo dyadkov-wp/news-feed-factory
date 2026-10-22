@@ -89,6 +89,7 @@ public function get_normalization_config(): array;
     'image_url'      => ?string,            // null, если нет
     'image_width'    => ?int,
     'image_height'   => ?int,
+    'image_attachment_id' => ?int,          // attachment ID, null если нет
     'terms'          => array,              // пусто, если include_terms = false
 ]
 ```
@@ -341,6 +342,7 @@ ADR.
     'image_url'    => ?string,      // результат ImageExtractor
     'image_width'  => ?int,
     'image_height' => ?int,
+    'image_attachment_id' => ?int,  // attachment ID, null если нет
     'terms'        => array,        // плоский список (см. «Нормализованный элемент»)
 ]
 ```
@@ -441,7 +443,8 @@ $cut = preg_replace( '/<[^>]*$/u', '', $cut );
 - `excerpt` пуст или `to_plain` вернул пустую строку →
   `excerpt = ''`. Без `WARNING`: WP отдаёт пустой excerpt штатно.
 - `image_url` отсутствует (`null`) → `image_url = null`,
-  `image_width = null`, `image_height = null`. Без `WARNING`: у поста
+  `image_width = null`, `image_height = null`,
+  `image_attachment_id = null`. Без `WARNING`: у поста
   может не быть featured image — это норма.
 - `terms` отсутствует или не массив → `terms = []`. Без `WARNING`.
 

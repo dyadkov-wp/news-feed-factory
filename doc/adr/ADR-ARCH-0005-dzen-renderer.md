@@ -201,16 +201,26 @@ Yandex с пустым title). Пустой фид — валидный `<rss><c
 
 ### `EnclosureResolver`
 
-- Берёт `_thumbnail_id` записи → `ImageExtractor` уже проверяет
-  `image_min_width` / `image_min_height` (480 × 320). Если featured
-  меньше — `null`, `enclosure` не выводится (допустимо по спеке).
-- `length` обязателен по спеке, но `ImageExtractor` возвращает
-  `url`/`width`/`height`, **не** `filesize`. Источник:
-  `wp_get_attachment_metadata( $id )['filesize']` (из метаданных),
-  fallback — `0`. **Статический кэш на рендер** (`$cache[$id]`):
-  несколько постов могут ссылаться на одно вложение.
-- `type` — `wp_check_filetype( get_attached_file( $id ) )['type']`
-  (`image/jpeg`, `image/png`, `image/webp`).
+- Работает с готовым featured-контрактом из `$item`: `image_url`,
+  `image_width`, `image_height` (размеры уже проверены
+  `ImageExtractor` в `Collector` по `image_min_width` /
+  `image_min_height` = 480 × 320) и `image_attachment_id`
+  (nullable int, ADR-ARCH-0002). Если `image_url` или
+  `image_attachment_id` равны `null` — `enclosure` не выводится
+  (допустимо по спеке, fallback на image-in-content — TD-05, не v1).
+- `length` обязателен по спеке. Источник:
+  `wp_get_attachment_metadata( (int) $item['image_attachment_id'] )['filesize']`,
+  fallback — `0`. **Статический кэш на экземпляр резолвера**
+  (`private array $metadata_cache = []`, ключ — attachment ID):
+  несколько постов могут ссылаться на одно вложение; кэш переживает
+  два `resolve()` подряд на одном экземпляре. Сбрасывается при новом
+  инстансе — резолвер живёт в рамках одного рендера, это ожидаемо.
+- `type` — `wp_check_filetype( get_attached_file( (int) $item['image_attachment_id'] ) )['type']`
+  (`image/jpeg`, `image/png`, `image/webp`). Если `wp_check_filetype`
+  вернул `false` или пустую строку (файл удалён, mime не распознан) —
+  `resolve()` возвращает `null`, `enclosure` не выводится, `WARNING`
+  в лог. Невалидный `enclosure` ломает RSS-валидатор — лучше
+  пропустить item, чем отдать битый.
 - **`enclosure_fallback` в v1 нет** — это TD-05 (image-in-content),
   отложен. Без featured `enclosure` не выводится. Явно фиксируем:
   fallback на первое изображение из контента — TD-05, не v1.
@@ -421,7 +431,9 @@ Yandex с пустым title). Пустой фид — валидный `<rss><c
 
 ## Тесты
 
-### Integration (`EndpointTest` для `/feed/dzen.xml`)
+### Integration
+
+#### `EndpointTest` для `/feed/dzen.xml`
 
 - **200 + Content-Type:** `application/rss+xml; charset=UTF-8`,
   без 301 (наследие фикса `73bc0f8`).
@@ -461,6 +473,28 @@ Yandex с пустым title). Пустой фид — валидный `<rss><c
     (два рендера подряд, byte-for-byte).
 
 Итого ~18–20 integration.
+
+#### `EnclosureResolverTest` (`tests/integration/Render/Dzen/EnclosureResolverTest.php`):
+
+`EnclosureResolver` не pure: зовёт `wp_get_attachment_metadata`,
+`get_attached_file`, `wp_check_filetype`. Тесты — integration
+(`tests/bootstrap-integration.php`), класс — `WP_UnitTestCase` с
+`@group integration` (нужны реальные attachments и
+`wp_generate_attachment_metadata`; паттерн — как в `ImageExtractorTest`).
+
+  - featured есть → `url`/`type`/`length` корректны (`image/jpeg`,
+    `filesize` из метаданных);
+  - `image_attachment_id = null` → `null` (featured нет, без fallback,
+    TD-05);
+  - `image_url = null` при заданном `image_attachment_id` → `null`
+    (страховка от рассинхрона контракта, теоретически невозможно);
+  - `filesize` отсутствует в метаданных → `length = 0`;
+  - `wp_check_filetype` вернул `false` → `null` + `WARNING`;
+  - static cache: два `resolve()` подряд с одинаковым
+    `image_attachment_id` → spy на фильтр `get_post_metadata` фиксирует
+    ровно одно срабатывание для `_wp_attachment_metadata`. Без
+    reflection, без изменения production-кода (`WP_UnitTestCase`,
+    `add_filter`/`remove_filter` в `try/finally`).
 
 ### Unit
 
@@ -689,14 +723,6 @@ $this->assertSame( 'foo ]]]]><![CDATA[> bar', $processor->process( 'foo ]]> bar'
   уже отказался от внешних зависимостей для XML; тот же аргумент для HTML.
 - **`Dom\HTMLDocument`** (PHP 8.4) — лучше по спеке, но среда — PHP 8.3.
 
-#### EnclosureResolver:
-  - featured есть → `url`/`type`/`length` корректны;
-  - featured меньше 480 × 320 → `null`;
-  - featured нет → `null` (без fallback, TD-05);
-  - `filesize` из `wp_get_attachment_metadata`, fallback `0`;
-  - static cache: два поста с одним `_thumbnail_id` → один
-    `wp_get_attachment_metadata` вызов.
-
 ## Открытые вопросы
 
 1. **`contentType` по умолчанию** — **ЗАКРЫТ 2026-10-21:** `news_only`
@@ -710,7 +736,7 @@ $this->assertSame( 'foo ]]]]><![CDATA[> bar', $processor->process( 'foo ]]> bar'
 ## План реализации (по чатам)
 
 1. `ContentProcessor` + unit — отдельный чат.
-2. `EnclosureResolver` + unit — отдельный чат.
+2. `EnclosureResolver` + integration — отдельный чат.
 3. `DzenRenderer` + unit + регистрация в `Plugin` / `Settings\Store` —
    отдельный чат.
 4. Integration (`EndpointTest` для `/feed/dzen.xml`) — отдельный чат.
