@@ -26,11 +26,30 @@ final class ContentProcessor {
 	private const CUT_TAGS = array( 'script', 'style', 'iframe', 'form', 'input' );
 
 	/**
-	 * Tags unwrapped (children promoted, tag itself dropped).
+	 * Tags allowed in the final Dzen output (ADR-ARCH-0005 § ContentProcessor, п.1).
 	 *
 	 * @var array<int, string>
 	 */
-	private const UNWRAP_TAGS = array( 'div', 'span', 'h5', 'h6' );
+	private const ALLOWED_TAGS = array(
+		'p',
+		'a',
+		'b',
+		'i',
+		'u',
+		's',
+		'h1',
+		'h2',
+		'h3',
+		'h4',
+		'blockquote',
+		'ul',
+		'ol',
+		'li',
+		'img',
+		'figure',
+		'figcaption',
+		'br',
+	);
 
 	/**
 	 * Rename map for normalized inline tags.
@@ -61,10 +80,10 @@ final class ContentProcessor {
 		$dom = $this->load( $html );
 
 		$this->cut( $dom, self::CUT_TAGS );
-		$this->unwrap( $dom, self::UNWRAP_TAGS );
-		$this->unwrap_figures_without_img( $dom );
-		$this->unwrap_orphan_figcaptions( $dom );
 		$this->rename( $dom, self::RENAME_MAP );
+		$this->unwrap_not_allowed( $dom );
+		$this->unwrap_empty_figures( $dom );
+		$this->unwrap_orphan_figcaptions( $dom );
 		$this->wrap_imgs( $dom );
 		$this->strip_attributes( $dom );
 
@@ -74,6 +93,10 @@ final class ContentProcessor {
 			if ( false !== $fragment ) {
 				$output .= $fragment;
 			}
+		}
+
+		if ( '' === trim( $output ) ) {
+			return '';
 		}
 
 		return $this->escape_cdata( $output );
@@ -125,18 +148,30 @@ final class ContentProcessor {
 	}
 
 	/**
-	 * Unwrap the given tags, keeping their children.
+	 * Unwrap every element whose tag is not in the Dzen whitelist.
 	 *
-	 * @param \DOMDocument       $dom  Document.
-	 * @param array<int, string> $tags Tags to unwrap.
+	 * Covers div, span, h5, h6 (ADR-ARCH-0005 Q7 semantic clarifications) and
+	 * any other non-Dzen tag (table, section, article, aside, …) — ADR п.1
+	 * "Allow only Dzen tags" is a whitelist contract. Runs iteratively because
+	 * unwrapping exposes children that may themselves need to be unwrapped.
+	 *
+	 * @param \DOMDocument $dom Document.
 	 * @return void
 	 */
-	private function unwrap( \DOMDocument $dom, array $tags ): void {
-		foreach ( $tags as $tag ) {
-			foreach ( iterator_to_array( $dom->getElementsByTagName( $tag ) ) as $node ) {
-				$this->unwrap_node( $node );
+	private function unwrap_not_allowed( \DOMDocument $dom ): void {
+		do {
+			$changed = false;
+			foreach ( iterator_to_array( $dom->getElementsByTagName( '*' ) ) as $el ) {
+				if ( ! $el instanceof \DOMElement ) {
+					continue;
+				}
+				if ( in_array( strtolower( $el->tagName ), self::ALLOWED_TAGS, true ) ) {
+					continue;
+				}
+				$this->unwrap_node( $el );
+				$changed = true;
 			}
-		}
+		} while ( $changed );
 	}
 
 	/**
@@ -159,17 +194,20 @@ final class ContentProcessor {
 	}
 
 	/**
-	 * Unwrap every figure that contains no img descendant.
+	 * Unwrap every figure with neither img nor figcaption descendants.
+	 *
+	 * ADR-ARCH-0005 Q7: a figure is kept if it contains img **or** figcaption.
 	 *
 	 * @param \DOMDocument $dom Document.
 	 * @return void
 	 */
-	private function unwrap_figures_without_img( \DOMDocument $dom ): void {
+	private function unwrap_empty_figures( \DOMDocument $dom ): void {
 		foreach ( iterator_to_array( $dom->getElementsByTagName( 'figure' ) ) as $figure ) {
 			if ( ! $figure instanceof \DOMElement ) {
 				continue;
 			}
-			if ( $figure->getElementsByTagName( 'img' )->length > 0 ) {
+			if ( $figure->getElementsByTagName( 'img' )->length > 0
+				|| $figure->getElementsByTagName( 'figcaption' )->length > 0 ) {
 				continue;
 			}
 			$this->unwrap_node( $figure );
@@ -245,7 +283,7 @@ final class ContentProcessor {
 	}
 
 	/**
-	 * Remove style and on* attributes from every element.
+	 * Remove style and on[a-z]* attributes from every element.
 	 *
 	 * @param \DOMDocument $dom Document.
 	 * @return void
@@ -257,7 +295,7 @@ final class ContentProcessor {
 			}
 			foreach ( iterator_to_array( $element->attributes ) as $attr ) {
 				$name = strtolower( $attr->nodeName );
-				if ( 'style' === $name || str_starts_with( $name, 'on' ) ) {
+				if ( 'style' === $name || 1 === preg_match( '/^on[a-z]+$/', $name ) ) {
 					$element->removeAttribute( $attr->nodeName );
 				}
 			}

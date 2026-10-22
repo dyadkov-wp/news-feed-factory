@@ -203,14 +203,44 @@ final class ContentProcessorTest extends TestCase {
 	}
 
 	/**
-	 * A figure with only figcaption (no img) is unwrapped.
+	 * A figure with only figcaption (no img) is kept.
+	 *
+	 * ADR-ARCH-0005 Q7: a figure is kept if it contains img **or** figcaption.
 	 *
 	 * @return void
 	 */
-	public function test_figcaption_only_figure_is_unwrapped(): void {
+	public function test_figcaption_only_figure_is_kept(): void {
 		$html = '<figure><figcaption>cap</figcaption></figure>';
 
-		$this->assertCanonical( 'cap', $this->processor()->process( $html ) );
+		$this->assertCanonical( $html, $this->processor()->process( $html ) );
+	}
+
+	/**
+	 * Tags outside the Dzen whitelist are unwrapped (content preserved).
+	 *
+	 * ADR-ARCH-0005 п.1 "Allow only Dzen tags" is a whitelist contract;
+	 * anything else (table, section, article, …) is unwrapped, not kept.
+	 *
+	 * @return void
+	 */
+	public function test_non_whitelisted_tags_are_unwrapped(): void {
+		$html = '<section>x</section><article>y</article>';
+
+		$this->assertCanonical( 'xy', $this->processor()->process( $html ) );
+	}
+
+	/**
+	 * A non-whitelisted wrapper around img is unwrapped, then img is figure-wrapped.
+	 *
+	 * @return void
+	 */
+	public function test_non_whitelisted_wrappers_around_img_are_flattened(): void {
+		$html = '<div><section><img src="a.jpg"></section></div>';
+
+		$this->assertCanonical(
+			'<figure><img src="a.jpg"></figure>',
+			$this->processor()->process( $html )
+		);
 	}
 
 	// ---------------------------------------------------------------------
@@ -434,5 +464,57 @@ final class ContentProcessorTest extends TestCase {
 		$twice = $this->processor()->process( $once );
 
 		$this->assertSame( $once, $twice );
+	}
+
+	/**
+	 * Forbidden tags surrounded by whitespace still yield an empty result.
+	 *
+	 * ADR step 10: trim($out) === '' → return ''. Otherwise ' <script>x</script> '
+	 * would leak two text-node spaces into the feed.
+	 *
+	 * @return void
+	 */
+	public function test_forbidden_tags_with_surrounding_whitespace_returns_empty_string(): void {
+		$this->assertSame( '', $this->processor()->process( ' <script>x</script> ' ) );
+	}
+
+	/**
+	 * An input whose only content is whitespace after DOM wash returns ''.
+	 *
+	 * @return void
+	 */
+	public function test_dom_that_becomes_whitespace_only_returns_empty_string(): void {
+		$this->assertSame( '', $this->processor()->process( '<div>   </div>' ) );
+	}
+
+	/**
+	 * An attribute with an "on" prefix but a hyphen is preserved.
+	 *
+	 * Real event handlers are on + [a-z]+ to end of name (onclick, onload, …);
+	 * custom attributes like only-x are outside that set. Guards against the
+	 * str_starts_with('on') / ^on[a-z] pitfalls that would strip only-x.
+	 *
+	 * @return void
+	 */
+	public function test_attribute_starting_with_on_but_not_handler_is_preserved(): void {
+		$html = '<p only-x="y">z</p>';
+
+		$this->assertCanonical( $html, $this->processor()->process( $html ) );
+	}
+
+	/**
+	 * Idempotency does NOT hold for input containing `]]>` — documented limitation.
+	 *
+	 * The CDATA escape `]]]]><![CDATA[>` is recognized by the CDATA parser but
+	 * not by the HTML parser: a second pass sees `<!` and treats it as a bogus
+	 * comment. This is by design, not a bug. See ADR-ARCH-0005 (TODO: note in § CDATA escape).
+	 *
+	 * @return void
+	 */
+	public function test_idempotency_does_not_hold_for_cdata_escape(): void {
+		$once  = $this->processor()->process( 'a ]]> b' );
+		$twice = $this->processor()->process( $once );
+
+		$this->assertNotSame( $once, $twice );
 	}
 }
