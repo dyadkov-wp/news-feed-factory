@@ -97,17 +97,18 @@ final class ContentNormalizer {
 			: array();
 
 		return array(
-			'id'           => $id,
-			'link'         => $link,
-			'title'        => trim( html_entity_decode( $title, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ),
-			'content'      => $content,
-			'excerpt'      => $excerpt,
-			'published'    => $published,
-			'author'       => isset( $raw['author'] ) && is_string( $raw['author'] ) ? $raw['author'] : '',
-			'image_url'    => isset( $raw['image_url'] ) && is_string( $raw['image_url'] ) ? $raw['image_url'] : null,
-			'image_width'  => isset( $raw['image_width'] ) && is_int( $raw['image_width'] ) ? $raw['image_width'] : null,
-			'image_height' => isset( $raw['image_height'] ) && is_int( $raw['image_height'] ) ? $raw['image_height'] : null,
-			'terms'        => $terms,
+			'id'                  => $id,
+			'link'                => $link,
+			'title'               => trim( html_entity_decode( $title, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ),
+			'content'             => $content,
+			'excerpt'             => $excerpt,
+			'published'           => $published,
+			'author'              => isset( $raw['author'] ) && is_string( $raw['author'] ) ? $raw['author'] : '',
+			'image_url'           => isset( $raw['image_url'] ) && is_string( $raw['image_url'] ) ? $raw['image_url'] : null,
+			'image_width'         => isset( $raw['image_width'] ) && is_int( $raw['image_width'] ) ? $raw['image_width'] : null,
+			'image_height'        => isset( $raw['image_height'] ) && is_int( $raw['image_height'] ) ? $raw['image_height'] : null,
+			'image_attachment_id' => isset( $raw['image_attachment_id'] ) && is_int( $raw['image_attachment_id'] ) ? $raw['image_attachment_id'] : null,
+			'terms'               => $terms,
 		);
 	}
 

@@ -24,7 +24,7 @@ final class ImageExtractor {
 	 *
 	 * @param int                  $post_id Post ID.
 	 * @param array<string, mixed> $config  Normalization config.
-	 * @return array{url: string, width: int, height: int}|null
+	 * @return array{attachment_id: int, url: string, width: int, height: int}|null
 	 */
 	public function extract( int $post_id, array $config ): ?array {
 		$thumbnail_id = get_post_thumbnail_id( $post_id );
@@ -56,9 +56,10 @@ final class ImageExtractor {
 		}
 
 		return array(
-			'url'    => $url,
-			'width'  => $width,
-			'height' => $height,
+			'attachment_id' => (int) $thumbnail_id,
+			'url'           => $url,
+			'width'         => $width,
+			'height'        => $height,
 		);
 	}
 }

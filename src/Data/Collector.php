@@ -251,17 +251,18 @@ final class Collector {
 		$include_terms = ! empty( $config['include_terms'] );
 
 		return array(
-			'id'           => (string) get_permalink( $post ),
-			'link'         => (string) get_permalink( $post ),
-			'title'        => (string) get_the_title( $post ),
-			'content'      => $this->html_sanitizer->sanitize( (string) $post->post_content, $allowed_html ),
-			'excerpt'      => (string) $post->post_excerpt,
-			'published'    => (string) $post->post_date_gmt,
-			'author'       => (string) get_the_author_meta( 'display_name', (int) $post->post_author ),
-			'image_url'    => $image['url'] ?? null,
-			'image_width'  => $image['width'] ?? null,
-			'image_height' => $image['height'] ?? null,
-			'terms'        => $include_terms ? $this->collect_terms( (int) $post->ID ) : array(),
+			'id'                  => (string) get_permalink( $post ),
+			'link'                => (string) get_permalink( $post ),
+			'title'               => (string) get_the_title( $post ),
+			'content'             => $this->html_sanitizer->sanitize( (string) $post->post_content, $allowed_html ),
+			'excerpt'             => (string) $post->post_excerpt,
+			'published'           => (string) $post->post_date_gmt,
+			'author'              => (string) get_the_author_meta( 'display_name', (int) $post->post_author ),
+			'image_url'           => $image['url'] ?? null,
+			'image_width'         => $image['width'] ?? null,
+			'image_height'        => $image['height'] ?? null,
+			'image_attachment_id' => $image['attachment_id'] ?? null,
+			'terms'               => $include_terms ? $this->collect_terms( (int) $post->ID ) : array(),
 		);
 	}
 
