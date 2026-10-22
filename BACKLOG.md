@@ -435,3 +435,46 @@ production-коде. `NewsSitemapRenderer` сохраняет fallback на
 
 **Когда делать.** При следующем касании `NewsSitemapRenderer` или
 перед добавлением Dzen-рендера (чтобы не размножать паттерн fallback).
+
+### TD-28: Единая абстракция логирования (`Logger`) вместо `?\Closure` + `wp_trigger_error`
+
+**Проблема.** Логирование WARNING'ов реализовано в `src/` тремя
+способами, четвёртый на подходе:
+
+- `Render/Google/NewsSitemapRenderer` — инъекция `?\Closure $logger`,
+  fallback `wp_trigger_error( self::class . '::render', ... )` под
+  `function_exists` guard;
+- `Install/Schema::activate()` — прямой `wp_trigger_error( __METHOD__, ... )`
+  **без** `function_exists` guard (на WP < 6.4 — fatal);
+- `Render/Dzen/EnclosureResolver` — копия паттерна `NewsSitemapRenderer`
+  (введена этим циклом);
+- `Render/Dzen/DzenRenderer` (следующий чат) — понадобится четвёртый
+  экземпляр для «skip item без content».
+
+Три места с одинаковым `if ( function_exists ) { wp_trigger_error }`
+переживаемо. `DzenRenderer` станет четвёртым — сигнал к извлечению.
+
+**Решение.** Извлечь `NWFF\Support\Logger` (интерфейс с методом
+`warning( string $message ): void`) + три реализации:
+- `WpTriggerLogger` — `wp_trigger_error( $caller, $message, E_USER_WARNING )`;
+- `NullLogger` — no-op;
+- `CallableLogger` — обёртка над `\Closure` для тестов.
+
+Все renderer'ы и `Schema` принимают `Logger` через конструктор. При
+отсутствии — `NullLogger` по умолчанию (не `WpTriggerLogger`, чтобы
+поведение совпадало с текущим «нет логгера → тишина в тестах»); в
+`Plugin` — явная передача `WpTriggerLogger`.
+
+**Что не входит.** Унификация сообщений и формата лога — только
+абстракция транспорта. Логирование в `Collector`/`ContentNormalizer`
+не трогаем (там пока нет WARNING'ов).
+
+**Когда.** Отдельный `refactor(support)` **после** `DzenRenderer`.
+Не в этом цикле: `EnclosureResolver` уже приведён к паттерну
+`NewsSitemapRenderer` по факту, до `DzenRenderer` дублирования в двух
+местах достаточно.
+
+**Риски.** `Schema::activate()` живёт в activation hook — до
+`function_exists( 'wp_trigger_error' )` там вообще не должно быть
+(это уже баг WP < 6.4, но вне этого TD). Проверить `function_exists`
+независимо.
