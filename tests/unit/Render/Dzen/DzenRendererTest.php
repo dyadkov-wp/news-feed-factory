@@ -305,19 +305,23 @@ final class DzenRendererTest extends TestCase {
 	}
 
 	/**
-	 * Titles over 200 chars are truncated to exactly 200.
+	 * Titles over 200 chars are truncated by Truncator, fitting the limit.
+	 *
+	 * Uses a multi-word title: Truncator does not split individual words,
+	 * so a single 250-char word would collapse to an empty string.
 	 *
 	 * @return void
 	 */
 	public function test_item_title_truncated_when_over_200_chars(): void {
-		$long_title = str_repeat( 'a', 250 );
+		$long_title = str_repeat( 'abcde ', 60 );
 		$item       = $this->make_item( array( 'title' => $long_title ) );
 		$xml        = $this->renderer->render( array( $item ), $this->make_args() );
 
 		preg_match( '/<item>.*?<title>(.*?)<\/title>/s', $xml, $matches );
 
 		$this->assertNotEmpty( $matches[1] );
-		$this->assertSame( 200, mb_strlen( $matches[1] ) );
+		$this->assertLessThan( strlen( $long_title ), mb_strlen( $matches[1] ) );
+		$this->assertLessThanOrEqual( 200, mb_strlen( $matches[1] ) );
 	}
 
 	/**
@@ -384,19 +388,37 @@ final class DzenRendererTest extends TestCase {
 	}
 
 	/**
-	 * Escapes CDATA terminator inside content exactly once.
+	 * Escapes CDATA terminator inside plain-text content exactly once.
+	 *
+	 * Uses a plain-text input: HTML input is normalized by saveHTML(),
+	 * which already escapes ">" inside text nodes to "&gt;" before the
+	 * CDATA escape step runs (ADR-ARCH-0005 § CDATA-escape exception).
 	 *
 	 * @return void
 	 */
 	public function test_item_cdata_escape_not_double_encoded(): void {
-		$item = $this->make_item( array( 'content' => '<p>foo ]]> bar</p>' ) );
+		$item = $this->make_item( array( 'content' => 'foo ]]> bar' ) );
 		$xml  = $this->renderer->render( array( $item ), $this->make_args() );
 
 		$this->assertStringContainsString(
-			'<![CDATA[<p>foo ]]]]><![CDATA[> bar</p>]]>',
+			'<![CDATA[foo ]]]]><![CDATA[> bar]]>',
 			$xml
 		);
 		$this->assertSame( 1, substr_count( $xml, ']]]]><![CDATA[>' ) );
+	}
+
+	/**
+	 * Documents that saveHTML() escapes ">" in HTML text nodes before
+	 * the CDATA escape step, so "]]>" never survives into CDATA.
+	 *
+	 * @return void
+	 */
+	public function test_item_html_content_has_no_cdata_terminator(): void {
+		$item = $this->make_item( array( 'content' => '<p>foo ]]> bar</p>' ) );
+		$xml  = $this->renderer->render( array( $item ), $this->make_args() );
+
+		$this->assertStringContainsString( '<![CDATA[<p>foo ]]&gt; bar</p>]]>', $xml );
+		$this->assertStringNotContainsString( ']]]]><![CDATA[>', $xml );
 	}
 
 	/**
