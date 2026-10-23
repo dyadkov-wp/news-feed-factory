@@ -13,6 +13,7 @@ namespace NWFF\Tests\Integration;
 
 use NWFF\Cache\TransientCache;
 use NWFF\Plugin;
+use NWFF\Render\DzenRenderer;
 use NWFF\Render\YandexRenderer;
 use WP_UnitTestCase;
 
@@ -33,6 +34,18 @@ final class PluginTest extends WP_UnitTestCase {
 
 		$this->assertArrayHasKey( 'yandex', $renderers );
 		$this->assertInstanceOf( YandexRenderer::class, $renderers['yandex'] );
+	}
+
+	/**
+	 * The renderer map contains the Dzen renderer.
+	 *
+	 * @return void
+	 */
+	public function test_renderers_contains_dzen(): void {
+		$renderers = Plugin::renderers();
+
+		$this->assertArrayHasKey( 'dzen', $renderers );
+		$this->assertInstanceOf( DzenRenderer::class, $renderers['dzen'] );
 	}
 
 	/**

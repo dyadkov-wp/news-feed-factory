@@ -14,6 +14,9 @@ use NWFF\Cache\TransientCache;
 use NWFF\Data\Collector;
 use NWFF\Data\MetaRepository;
 use NWFF\Feed\Endpoint;
+use NWFF\Render\Dzen\ContentProcessor;
+use NWFF\Render\Dzen\EnclosureResolver;
+use NWFF\Render\DzenRenderer;
 use NWFF\Render\Google\NewsSitemapRenderer;
 use NWFF\Install\Cron;
 use NWFF\Install\Schema;
@@ -241,6 +244,7 @@ final class Plugin {
 	private static function make_renderers(): array {
 		return array(
 			'yandex'      => new YandexRenderer( new GenreResolver(), new Truncator() ),
+			'dzen'        => new DzenRenderer( new ContentProcessor(), new EnclosureResolver(), new Truncator() ),
 			'google-news' => new NewsSitemapRenderer(),
 		);
 	}
