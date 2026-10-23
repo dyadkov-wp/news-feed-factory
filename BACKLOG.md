@@ -514,3 +514,62 @@ depth (значение всё равно придёт из БД, теорети
 дополнить упоминанием `select`. Рендерер не трогаем.
 
 **Когда.** После `EndpointTest` для Dzen, до первого релиза 0.1.0.
+
+### TD-30: Рефакторинг endpoint-тестов — разбиение по рендерерам, общие хелперы, testable-404
+
+**Проблема.** `tests/integration/Feed/EndpointTest.php` покрывает два
+рендерера (yandex, google-news) в одном файле с общим `setUp()`.
+Docblock файла врёт: «against … both renderers». Добавление Dzen
+(третий рендерер, своя схема — `<contentType>` внутри `<item>`,
+`<guid isPermaLink="true">`, `<enclosure>`) в этот же файл размывает
+принадлежность теста. По той же причине Dzen заведён отдельным файлом
+`DzenEndpointTest.php`, и хелперы `make_post()` / `parse()` (25 строк)
+продублированы — это осознанный техдолг на время цикла ADR-0005.
+
+Отдельно: `Plugin::handle_feed_request()` (`src/Plugin.php:215`) на
+disabled/unknown slug делает `status_header(404); nocache_headers();
+exit;`. Путь `exit` в `WP_UnitTestCase` не тестируется (PHPUnit
+обрывается). Сейчас контракт «404 на disabled/unknown» покрыт только
+косвенно — через `Endpoint::serve() === null` (unit-уровень). HTTP-путь
+404 — correct-by-construction, без теста.
+
+**Что делать.**
+
+1. Разбить `EndpointTest.php`:
+   - `YandexEndpointTest.php` — только yandex-специфичные ассерты;
+   - `GoogleNewsEndpointTest.php` — google-news-специфичные;
+   - `DzenEndpointTest.php` (из цикла ADR-0005) остаётся отдельным.
+2. Вынести общее в `tests/integration/Feed/AbstractFeedEndpointTest.php`
+   (abstract class предпочтительнее trait — общие `setUp()` и
+   `$this->endpoint`): `make_post( int $age_seconds ): int`,
+   `parse( string $xml ): SimpleXMLElement`, `make_endpoint(): Endpoint`,
+   базовый `$settings` без рендерер-специфичных ключей. Наследники
+   добавляют свои рендерер-ключи и вызывают `parent::setUp()`.
+3. Testable-404: извлечь из `handle_feed_request()` сборку ответа в
+   `private static function build_feed_response( string $slug ): ?array`
+   (или `public static`, если нужен прямой тест). В
+   `handle_feed_request()` остаются только `header()` / `echo` / `exit`.
+   Тест: `assertNull( Plugin::build_feed_response( 'dzen' ) )` при
+   disabled + `assertNull( … 'unknown' )`.
+
+**Объём.** `tests/integration/Feed/` — 1 новый файл (abstract class),
+2 переименования/разбиения (~600 строк механически), `DzenEndpointTest`
+теряет 25 строк хелперов. `src/Plugin.php` — `handle_feed_request`
+разделяется на 2 метода (~10 строк). Тесты на 200/404 не дублируются
+между тремя файлами.
+
+**Что не входит.** Правки `Endpoint::serve()` — контракт не меняется.
+Правки рендереров — не трогаем. Параллелизация прогона
+(`@group slow` / `parallel-lint`) — отдельная задача.
+
+**Когда.** После приёмки ADR-ARCH-0005 (Dzen renderer → Accepted),
+до TD-29 (`Settings\Page` select). Приёмка ADR-0005 фиксирует
+текущее состояние (DzenEndpointTest с дублированными хелперами) как
+Green; TD-30 устраняет долг следующим refactor-циклом.
+
+**Риски.** При разбиении `EndpointTest.php` есть шанс вытащить
+скрытые зависимости между yandex- и google-news-кейсами (общий
+`$this->settings` сейчас содержит оба рендерера; после разбиения
+каждый файл должен нести только свой). Если какой-то ассерт
+сломается — это баг теста, не кода; фиксировать отдельным
+`fix(test)`-коммитом, не подгонять под зелёный.
