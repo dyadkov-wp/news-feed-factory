@@ -2,7 +2,7 @@
 
 **Статус:** Proposed
 **Создано:** 2026-10-20
-**Обновлено:** 2026-10-22
+**Обновлено:** 2026-10-23
 
 ## Контекст
 
@@ -474,6 +474,15 @@ Yandex с пустым title). Пустой фид — валидный `<rss><c
 
 Итого ~18–20 integration.
 
+  - **Реализация (2026-10-23).** `tests/integration/Feed/DzenEndpointTest.php` —
+  7 integration-тестов: content-type + обязательные теги, `content`
+  namespace, `guid isPermaLink="true"` = `link`, `contentType` в `<item>`,
+  пустой фид без `<item>`, disabled → `null`, cache byte-for-byte. Остальные
+  пункты списка покрыты unit-тестами `DzenRendererTest` (43 теста) и
+  `EnclosureResolverTest`; см. § Открытые вопросы п.3–5. Хелперы
+  `make_post()` / `parse()` дублированы из `Feed/EndpointTest.php` до
+  TD-30 (разбиение на per-renderer файлы + `AbstractFeedEndpointTest`).
+
 #### `EnclosureResolverTest` (`tests/integration/Render/Dzen/EnclosureResolverTest.php`):
 
 `EnclosureResolver` не pure: зовёт `wp_get_attachment_metadata`,
@@ -732,6 +741,27 @@ $this->assertSame( 'foo ]]]]><![CDATA[> bar', $processor->process( 'foo ]]> bar'
    crawl: возможны ошибки формата, не видимые в спеке.
 
 `dzenTitle`, `theme_tags`, `enclosure_fallback` — отложены (v1.1 / TD-05).
+
+3. **HTTP-404 путь `handle_feed_request()`** — `Plugin::handle_feed_request()`
+   (`src/Plugin.php:215`) на disabled/unknown slug делает
+   `status_header(404); nocache_headers(); exit;`. Путь `exit` не
+   тестируется в `WP_UnitTestCase` (PHPUnit обрывается). Сейчас
+   контракт «404 на disabled/unknown» покрыт косвенно — через
+   `Endpoint::serve() === null` (`DzenEndpointTest::test_disabled_dzen_returns_null`,
+   Yandex `EndpointTest::test_disabled_renderer_returns_null`). Прямой
+   тест — TD-30 (testable-404-seam в `Plugin::build_feed_response()`).
+
+4. **Enclosure-positive** — покрыт `EnclosureResolverTest::test_featured_image_returns_enclosure`
+   (`url` + `type` + `length > 0`), а не unit-тестами `DzenRendererTest`.
+   Отрицательный — `DzenRendererTest::test_item_enclosure_absent_when_no_attachment`
+   и два кейса в `EnclosureResolverTest` (missing attachment ID,
+   missing image URL).
+
+5. **URI `content` namespace** — `DzenRenderer::CONTENT_NAMESPACE = 'http://purl.org/rss/1.0/modules/content/'`
+   (канонический URI модуля RSS 2.0, спека 2002 г.). Дока Дзена
+   (`dzen.ru/help/ru/export-content/export.html`) упоминает `https://`.
+   Валидатор отложен (п.2). При первом crawl — проверить; при
+   необходимости отдельный `fix(dzen)` с правкой константы.
 
 ## План реализации (по чатам)
 
