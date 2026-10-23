@@ -478,3 +478,39 @@ production-коде. `NewsSitemapRenderer` сохраняет fallback на
 `function_exists( 'wp_trigger_error' )` там вообще не должно быть
 (это уже баг WP < 6.4, но вне этого TD). Проверить `function_exists`
 независимо.
+
+### TD-29: `Settings\Page` — поддержка `select` / `radio` и UI-выбор `content_type` для Dzen
+
+**Проблема.** В схеме `DzenRenderer::get_settings_schema()` поле
+`content_type` объявлено с `'type' => 'text'`: пользователь видит
+свободное поле ввода и `description`, допустимые значения проверяются
+только в рендере (`resolve_content_type()`, тихий откат на `news_only`).
+Это работает, но UX плохой — легко опечататься.
+
+**Что делать.** Добавить в `Settings\Page::render_field()` (`switch`
+по `$field['type']`) поддержку `'select'` (и, при желании, `'radio'`).
+Формат поля:
+
+```php
+'content_type' => array(
+    'type'    => 'select',
+    'label'   => 'Content type',
+    'default' => 'news_only',
+    'options' => array(
+        'news_only'  => 'news_only',
+        'news'       => 'news',
+        'blogs_only' => 'blogs_only',
+    ),
+),
+```
+
+Перевести `DzenRenderer::get_settings_schema()['content_type']` на
+`'select'`. Валидацию `resolve_content_type()` оставить как defense in
+depth (значение всё равно придёт из БД, теоретически может быть
+испорчено).
+
+**Объём.** `Settings\Page` — новая ветка `case 'select'` (~10 строк),
+юнит-тест на рендер `<select>` с `<option>`, ADR-0006 §Форма настроек —
+дополнить упоминанием `select`. Рендерер не трогаем.
+
+**Когда.** После `EndpointTest` для Dzen, до первого релиза 0.1.0.
