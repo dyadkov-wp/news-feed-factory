@@ -284,7 +284,8 @@ final class EndpointTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_channel_language_falls_back_to_ru_when_empty(): void {
-		add_filter( 'pre_option_WPLANG', static fn(): string => '' );
+		$empty_locale = static fn(): string => '';
+		add_filter( 'locale', $empty_locale );
 		$this->make_post();
 
 		$response = $this->endpoint->serve( 'yandex', $this->settings );
@@ -293,6 +294,6 @@ final class EndpointTest extends WP_UnitTestCase {
 		$rss = $this->parse( $response['body'] );
 		$this->assertSame( 'ru', (string) $rss->channel->language );
 
-		remove_all_filters( 'pre_option_WPLANG' );
+		remove_filter( 'locale', $empty_locale );
 	}
 }
