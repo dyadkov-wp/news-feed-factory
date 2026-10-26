@@ -573,3 +573,99 @@ Green; TD-30 устраняет долг следующим refactor-цикло�
 каждый файл должен нести только свой). Если какой-то ассерт
 сломается — это баг теста, не кода; фиксировать отдельным
 `fix(test)`-коммитом, не подгонять под зелёный.
+
+### TD-31: Множественные `<enclosure>` в Dzen-фиде (слайдер изображений)
+
+**Проблема.** По спеке RSS 2.0 у `<item>` — один `<enclosure>`. У нас
+так и есть: `EnclosureResolver` отдаёт только featured image
+(`image_attachment_id`). Reference-плагин `rss-for-yandex-zen`
+(oblgazeta) отдаёт **несколько** `<enclosure>` на item — по одному
+на каждую вложенную картинку в контенте, **без атрибута `length`**
+(нарушение спеки RSS 2.0, но Дзен принимает). В результате Дзен
+формирует **слайдер** вместо заголовочного фото.
+
+Пример (oblgazeta, пост 170457): пять `<enclosure url="..." type="image/jpeg"/>`
+(без `length`) — соответствует пяти `<figure><img>` в `<content:encoded>`.
+
+**Что делать.** Расширить `EnclosureResolver` (или добавить второй
+резолвер), чтобы:
+1. Собирать все `<img>` из `content:encoded` (после `expand_feed_content`)
+   и отдавать их URL как multiple enclosures.
+2. Решить, что делать с `length`: (а) оставить `length` на каждом
+   (правильно по спеке, но не как у референса — может сломать слайдер);
+   (б) убрать `length` для 2+ enclosures (как референс, но нарушает
+   спеку); (в) убрать `length` всегда (неправильно, но проверено
+   Дзеном); (г) оставить `length` только на первом (компромисс).
+3. Решить, дублировать ли featured image, если он уже есть среди
+   content-images.
+
+**Объём.** `EnclosureResolver::resolve()` → `resolve_all(): array<array{url, type, length}>`;
+`DzenRenderer::render_item()` — цикл по enclosures; ADR-0005 § EnclosureResolver
+дополнить; integration-тест на пост с 3+ картинками; регрессия —
+Yandex/Google не трогаем (у них `enclosure` один).
+
+**Что не входит.** Multiple enclosure для Yandex/Google — отдельное
+решение, если понадобится. Замена featured image на первый content-image.
+
+**Когда.** После первого успешного crawl Dzen-фида. Если валидатор
+принимает один enclosure — не делать вообще (не ломать то, что работает).
+Если Дзен потребует слайдер — делать.
+
+**Риски.** Multiple `<enclosure>` без `length` — нарушение RSS 2.0;
+некоторые агрегаторы могут ругаться. Референс работает, но он не
+эталон. Решение (а)–(г) выше — по результату валидатора, не вслепую.
+
+### TD-32: Media RSS для Dzen (`xmlns:media`, `<media:group>`) — видео и превью
+
+**Проблема.** Для `content_type = news_only` Дзен поддерживает
+медиаблок в новостях через **элементы Media RSS** на уровне `<item>`
+(не внутри `<content:encoded>`):
+
+```xml
+<media:group>
+  <media:content url="https://example.com/video/video-file.mp4" type="video/mp4"/>
+  <media:thumbnail url="https://example.com/images/video-preview.jpg"/>
+</media:group>
+```
+
+Требования Дзена: превью ≥ 800×400, формат MP4. Сейчас `DzenRenderer`
+не поддерживает Media RSS — `xmlns:media` не объявлен, `<media:group>`
+не рендерится, видео в постах не попадает в фид.
+
+Отдельно: для `content_type = blogs_only` Дзен поддерживает **inline**
+`<video><source type="video/mp4"/></video>` внутри `<content:encoded>`
+— это **другой** механизм, не Media RSS.
+
+**Что делать.**
+
+1. **Коллектор:** извлекать video-URL, video-type, thumbnail-URL из
+   поста (пост-мета `_nwff_video_url` / `_nwff_video_thumbnail`, или
+   парсинг `<video>`/`<iframe>` в контенте — решить отдельно).
+   Расширить `$item` схему: `video_url`, `video_type`, `video_thumbnail`.
+2. **Рендерер:** при `news_only` + наличии `video_url` — добавить
+   `<media:group>` в `<item>`. Объявить `xmlns:media` в `<rss>`.
+3. **Валидация:** `<media:thumbnail>` ≥ 800×400, `type="video/mp4"`.
+4. **Опционально:** inline `<video><source>` в whitelist
+   `get_normalization_config()['allowed_html']` — **только** если
+   когда-нибудь переключимся на `blogs_only` (TD-29). Сейчас
+   `news_only` — не включать (проверено: в контенте oblgazeta 0 `<video>`).
+
+**Объём.** `Collector::build_raw_item()` — извлечение video;
+`$item` схема + ADR-0002; `DzenRenderer` — `render_media_group()`,
+`xmlns:media` в `<rss>`; ADR-0005 § Схема фида дополнить; integration-тест
+на пост с video. Если переключение на `blogs_only` — whitelist расширить
+`video`/`source`.
+
+**Что не входит.** `content_type = blogs_only` (TD-29 сначала).
+Inline `<video>` в `news_only` (не поддерживается Дзеном, проверено
+документ). Автоматическое извлечение video из iframe-embed'ов
+(YouTube/Vimeo) — отдельная задача, если понадобится.
+
+**Когда.** После TD-31 (multiple enclosure) — оба про медиа, делать
+последовательно. Не в v0.1.0. Триггер — первый crawl или явный запрос
+редакции «нужно видео в Дзене».
+
+**Риски.** `<media:group>` без `xmlns:media` — невалидный XML. Превью
+< 800×400 — Дзен отклонит. Извлечение video из `post_content` может
+зацепить embed'ы плагинов (TagDiv `[td_block_video_youtube]`) — фильтровать
+по allowlist/мета. Если постов с видео нет — TD не делать (YAGNI).
