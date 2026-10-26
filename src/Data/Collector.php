@@ -22,6 +22,25 @@ use WP_Post;
  * happens here; ContentNormalizer stays pure.
  */
 final class Collector {
+	/**
+	 * Shortcodes expanded in feed content before sanitize.
+	 *
+	 * All are WP-core shortcodes with documented HTML output. Everything
+	 * else (TagDiv, event booking, paywalls, forms) is stripped, not
+	 * rendered: feeding plugin-generated HTML into the feed is worse
+	 * than losing the widget.
+	 *
+	 * @var array<int, string>
+	 */
+	private const FEED_SAFE_SHORTCODES = array(
+		'caption',
+		'wp_caption',
+		'gallery',
+		'playlist',
+		'audio',
+		'video',
+		'embed',
+	);
 
 	/**
 	 * Feed metadata repository.
@@ -70,6 +89,7 @@ final class Collector {
 	public function collect( array $args ): array {
 		$args  = $this->prepare_args( $args );
 		$posts = $this->query_posts( $args );
+
 		if ( array() === $posts ) {
 			return array();
 		}
@@ -84,6 +104,7 @@ final class Collector {
 		$items = array();
 		foreach ( $posts as $post ) {
 			$post_id = (int) $post->ID;
+
 			if ( ! empty( $meta[ $post_id ]['exclude_from_feeds'] ) ) {
 				continue;
 			}
@@ -112,9 +133,8 @@ final class Collector {
 			$args
 		);
 
-		$args['depth_hours'] = (int) $args['depth_hours'];
-		$args['limit']       = (int) $args['limit'];
-
+		$args['depth_hours']      = (int) $args['depth_hours'];
+		$args['limit']            = (int) $args['limit'];
 		$args['taxonomy_include'] = $this->sort_taxonomy_map( $args['taxonomy_include'] );
 		$args['taxonomy_exclude'] = $this->sort_taxonomy_map( $args['taxonomy_exclude'] );
 
@@ -140,13 +160,13 @@ final class Collector {
 			if ( ! is_array( $term_ids ) ) {
 				continue;
 			}
+
 			$ids = array_values( array_unique( array_map( 'intval', $term_ids ) ) );
 			sort( $ids );
 			$clean[ $taxonomy ] = $ids;
 		}
 
 		ksort( $clean );
-
 		return $clean;
 	}
 
@@ -184,13 +204,13 @@ final class Collector {
 			$args['taxonomy_include'],
 			$args['taxonomy_exclude']
 		);
+
 		if ( array() !== $tax_query ) {
-			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Taxonomy filtering is the core feature; term_id-indexed queries on a news site are bounded by depth_hours.
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Taxonomy filtering is the core feature; term_id-indexed queries on a news site are bounded by depth_hours.
 			$query_args['tax_query'] = $tax_query;
 		}
 
 		$query = new \WP_Query( $query_args );
-
 		return $query->posts;
 	}
 
@@ -236,6 +256,35 @@ final class Collector {
 	}
 
 	/**
+	 * Expand feed-safe shortcodes and Gutenberg blocks, strip the rest.
+	 *
+	 * `wp_kses_post` does not execute shortcodes, so a raw `[caption]`
+	 * would land in the feed as a literal. We expand only an allowlist
+	 * (WP-core shortcodes), then strip everything else — plugin
+	 * shortcodes (TagDiv, forms, paywalls) must never reach the feed
+	 * as rendered HTML. `the_content` is intentionally not applied:
+	 * it drags in likes-buttons, lazy-loading and theme widgets.
+	 *
+	 * @param string $html Raw post_content.
+	 * @return string Expanded HTML, ready for sanitize.
+	 */
+	private function expand_feed_content( string $html ): string {
+		if ( '' === $html ) {
+			return '';
+		}
+
+		if ( function_exists( 'do_blocks' ) ) {
+			$html = do_blocks( $html );
+		}
+
+		$pattern = get_shortcode_regex( self::FEED_SAFE_SHORTCODES );
+		$html    = (string) preg_replace_callback( "/$pattern/", 'do_shortcode_tag', $html );
+		$html    = strip_shortcodes( $html );
+
+		return (string) apply_filters( 'the_content_feed', $html, 'rss2' );
+	}
+
+	/**
 	 * Build a raw item from a post and the normalization config.
 	 *
 	 * @param WP_Post              $post   Post.
@@ -243,18 +292,19 @@ final class Collector {
 	 * @return array<string, mixed>
 	 */
 	private function build_raw_item( WP_Post $post, array $config ): array {
-		$allowed_html = $config['allowed_html'] ?? null;
-		$allowed_html = is_array( $allowed_html ) ? $allowed_html : null;
-
-		$image = $this->image_extractor->extract( (int) $post->ID, $config );
-
+		$allowed_html  = $config['allowed_html'] ?? null;
+		$allowed_html  = is_array( $allowed_html ) ? $allowed_html : null;
+		$image         = $this->image_extractor->extract( (int) $post->ID, $config );
 		$include_terms = ! empty( $config['include_terms'] );
 
 		return array(
 			'id'                  => (string) get_permalink( $post ),
 			'link'                => (string) get_permalink( $post ),
 			'title'               => (string) get_the_title( $post ),
-			'content'             => $this->html_sanitizer->sanitize( (string) $post->post_content, $allowed_html ),
+			'content'             => $this->html_sanitizer->sanitize(
+				$this->expand_feed_content( (string) $post->post_content ),
+				$allowed_html
+			),
 			'excerpt'             => (string) $post->post_excerpt,
 			'published'           => (string) $post->post_date_gmt,
 			'author'              => (string) get_the_author_meta( 'display_name', (int) $post->post_author ),
@@ -287,6 +337,7 @@ final class Collector {
 					'order'   => 'ASC',
 				)
 			);
+
 			if ( is_wp_error( $post_terms ) ) {
 				continue;
 			}
