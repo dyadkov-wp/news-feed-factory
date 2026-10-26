@@ -236,6 +236,38 @@ ADR.
 выход: Торжественная церемония … состоялась в Екатеринбурге
 ```
 
+### Расширение шорткодов (collector-time)
+
+`Collector::build_raw_item()` **расширяет** feed-safe шорткоды до sanitize.
+Причина: `wp_kses_post` не выполняет шорткоды, и литерал `[caption]`
+попадал бы в `<content:encoded>` как plain text (видно на реальном
+Дзен-фиде). Порядок шагов в `build_raw_item()`:
+
+1. `do_blocks( $post_content )` — Gutenberg-блоки → HTML (если функция есть).
+2. `preg_replace_callback( "/$pattern/", 'do_shortcode_tag', $html )`,
+   где `$pattern = get_shortcode_regex( FEED_SAFE_SHORTCODES )`. Allowlist:
+   `caption`, `wp_caption`, `gallery`, `playlist`, `audio`, `video`, `embed`
+   (все — WP-core с документированным HTML).
+3. `strip_shortcodes( $html )` — всё остальное (TagDiv `[td_block_*]`,
+   WPBakery, event-booking, формы, paywall) **вырезается**, не рендерится.
+4. `apply_filters( 'the_content_feed', $html, 'rss2' )` — только ядровые
+   `wp_staticize_emoji` + `_oembed_filter_feed_content`.
+5. `HtmlSanitizer::sanitize( $html, $allowed_html )` — как раньше,
+   defense in depth.
+
+`apply_filters( 'the_content', ... )` **намеренно не применяется.**
+Причины: (а) тянет 15 хуков, среди которых `3667_add_likes_to_content`
+(11), `wp_filter_content_tags` (12, добавляет `loading="lazy"` в фид),
+TagDiv `td_remove_inactive_shortcodes`; (б) защита через `remove_filter`
+под каждый чужой плагин — не контракт, а хрупкость. Reference-плагин
+`rss-for-yandex-zen` (oblgazeta) делает `the_content` и течёт — визуально
+незаметно, пока не добавится новый плагин с хуком на `the_content`.
+
+Формат `<figure>/<figcaption>` (HTML5) — стандарт с WP 5.0, включён
+у активной темы. `CollectorTest::setUp()` эмулирует его через
+`add_theme_support( 'html5', array( 'caption' ) )`, чтобы ассерты не
+зависели от темы тестового окружения.
+
 ### Контракт HtmlSanitizer::sanitize
 
 `HtmlSanitizer::sanitize( string $html, ?array $allowed_html = null ): string`
