@@ -24,7 +24,6 @@ use WP_UnitTestCase;
  * @group integration
  */
 final class CollectorTest extends WP_UnitTestCase {
-
 	/**
 	 * Collector under test.
 	 *
@@ -39,6 +38,11 @@ final class CollectorTest extends WP_UnitTestCase {
 	 */
 	protected function setUp(): void {
 		parent::setUp();
+
+		// Emulate a modern production theme. HTML5 caption support is standard
+		// since WP 5.0, ensuring <figure>/<figcaption> output instead of legacy <div>.
+		add_theme_support( 'html5', array( 'caption' ) );
+
 		$this->collector = new Collector(
 			new MetaRepository(),
 			new ImageExtractor(),
@@ -128,9 +132,7 @@ final class CollectorTest extends WP_UnitTestCase {
 	 */
 	public function test_recent_post_is_collected(): void {
 		$post_id = $this->make_post( 1 );
-
-		$result = $this->collector->collect( $this->args() );
-
+		$result  = $this->collector->collect( $this->args() );
 		$this->assertCount( 1, $result );
 		$this->assertSame( get_permalink( $post_id ), $result[0]['link'] );
 	}
@@ -142,7 +144,6 @@ final class CollectorTest extends WP_UnitTestCase {
 	 */
 	public function test_post_older_than_depth_is_skipped(): void {
 		$this->make_post( 6 );
-
 		$this->assertSame( array(), $this->collector->collect( $this->args( array( 'depth_hours' => 4 ) ) ) );
 	}
 
@@ -153,7 +154,6 @@ final class CollectorTest extends WP_UnitTestCase {
 	 */
 	public function test_draft_posts_are_skipped(): void {
 		$this->make_post( 1, array( 'post_status' => 'draft' ) );
-
 		$this->assertSame( array(), $this->collector->collect( $this->args() ) );
 	}
 
@@ -164,16 +164,12 @@ final class CollectorTest extends WP_UnitTestCase {
 	 */
 	public function test_raw_shape_matches_contract(): void {
 		$this->make_post( 1 );
-
 		$result = $this->collector->collect( $this->args() );
-
 		$this->assertCount( 1, $result );
 		$item = $result[0];
-
 		foreach ( array( 'id', 'link', 'title', 'content', 'excerpt', 'published', 'author', 'image_url', 'image_width', 'image_height', 'terms' ) as $key ) {
 			$this->assertArrayHasKey( $key, $item, "Missing key: {$key}" );
 		}
-
 		$this->assertIsString( $item['id'] );
 		$this->assertIsString( $item['link'] );
 		$this->assertIsString( $item['title'] );
@@ -196,9 +192,7 @@ final class CollectorTest extends WP_UnitTestCase {
 		$this->make_post( 1 );
 		$this->make_post( 1 );
 		$this->make_post( 1 );
-
 		$result = $this->collector->collect( $this->args( array( 'limit' => 2 ) ) );
-
 		$this->assertCount( 2, $result );
 	}
 
@@ -208,21 +202,18 @@ final class CollectorTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_taxonomy_include_filters_posts(): void {
-		$term = (int) self::factory()->term->create(
+		$term     = (int) self::factory()->term->create(
 			array(
 				'taxonomy' => 'category',
 				'name'     => 'News',
 			)
 		);
-
 		$included = $this->make_post( 1 );
 		$excluded = $this->make_post( 1 );
 		wp_set_object_terms( $included, array( $term ), 'category' );
-
 		$result = $this->collector->collect(
 			$this->args( array( 'taxonomy_include' => array( 'category' => array( $term ) ) ) )
 		);
-
 		$this->assertCount( 1, $result );
 		$this->assertSame( get_permalink( $included ), $result[0]['link'] );
 		$this->assertNotSame( get_permalink( $excluded ), $result[0]['link'] );
@@ -234,21 +225,18 @@ final class CollectorTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_taxonomy_exclude_filters_posts(): void {
-		$term = (int) self::factory()->term->create(
+		$term     = (int) self::factory()->term->create(
 			array(
 				'taxonomy' => 'category',
 				'name'     => 'Sponsored',
 			)
 		);
-
 		$kept     = $this->make_post( 1 );
 		$excluded = $this->make_post( 1 );
 		wp_set_object_terms( $excluded, array( $term ), 'category' );
-
 		$result = $this->collector->collect(
 			$this->args( array( 'taxonomy_exclude' => array( 'category' => array( $term ) ) ) )
 		);
-
 		$this->assertCount( 1, $result );
 		$this->assertSame( get_permalink( $kept ), $result[0]['link'] );
 	}
@@ -259,24 +247,22 @@ final class CollectorTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_taxonomy_order_does_not_change_result(): void {
-		$cat = (int) self::factory()->term->create(
+		$cat     = (int) self::factory()->term->create(
 			array(
 				'taxonomy' => 'category',
 				'name'     => 'A',
 			)
 		);
-		$tag = (int) self::factory()->term->create(
+		$tag     = (int) self::factory()->term->create(
 			array(
 				'taxonomy' => 'post_tag',
 				'name'     => 'B',
 			)
 		);
-
 		$post_id = $this->make_post( 1 );
 		wp_set_object_terms( $post_id, array( $cat ), 'category' );
 		wp_set_object_terms( $post_id, array( $tag ), 'post_tag' );
-
-		$args_a = $this->args(
+		$args_a   = $this->args(
 			array(
 				'taxonomy_include' => array(
 					'category' => array( $cat ),
@@ -284,7 +270,7 @@ final class CollectorTest extends WP_UnitTestCase {
 				),
 			)
 		);
-		$args_b = $this->args(
+		$args_b   = $this->args(
 			array(
 				'taxonomy_include' => array(
 					'post_tag' => array( $tag ),
@@ -292,10 +278,8 @@ final class CollectorTest extends WP_UnitTestCase {
 				),
 			)
 		);
-
 		$result_a = $this->collector->collect( $args_a );
 		$result_b = $this->collector->collect( $args_b );
-
 		$this->assertSame(
 			array_column( $result_a, 'link' ),
 			array_column( $result_b, 'link' )
@@ -311,9 +295,7 @@ final class CollectorTest extends WP_UnitTestCase {
 		$kept     = $this->make_post( 1 );
 		$excluded = $this->make_post( 1 );
 		$this->insert_meta( $excluded, 1 );
-
 		$result = $this->collector->collect( $this->args() );
-
 		$this->assertCount( 1, $result );
 		$this->assertSame( get_permalink( $kept ), $result[0]['link'] );
 	}
@@ -332,9 +314,7 @@ final class CollectorTest extends WP_UnitTestCase {
 		);
 		$post_id = $this->make_post( 1 );
 		wp_set_object_terms( $post_id, array( $term ), 'category' );
-
 		$result = $this->collector->collect( $this->args() );
-
 		$this->assertSame( array(), $result[0]['terms'] );
 	}
 
@@ -352,16 +332,13 @@ final class CollectorTest extends WP_UnitTestCase {
 		);
 		$post_id = $this->make_post( 1 );
 		wp_set_object_terms( $post_id, array( $term ), 'category' );
-
 		$config = array(
 			'include_terms'    => true,
 			'allowed_html'     => null,
 			'image_min_width'  => null,
 			'image_min_height' => null,
 		);
-
 		$result = $this->collector->collect( $this->args( array( 'normalization_config' => $config ) ) );
-
 		$this->assertNotEmpty( $result[0]['terms'] );
 		$first = $result[0]['terms'][0];
 		$this->assertSame( 'category', $first['taxonomy'] );
@@ -378,22 +355,17 @@ final class CollectorTest extends WP_UnitTestCase {
 		if ( ! function_exists( 'imagecreatetruecolor' ) ) {
 			$this->markTestSkipped( 'GD required.' );
 		}
-
 		$file = sys_get_temp_dir() . '/nwff-collector-' . uniqid() . '.jpg';
 		$img  = imagecreatetruecolor( 1200, 800 );
 		imagejpeg( $img, $file, 90 );
 		imagedestroy( $img );
-
 		$post_id       = $this->make_post( 1 );
 		$attachment_id = self::factory()->attachment->create_upload_object( $file, $post_id );
 		set_post_thumbnail( $post_id, $attachment_id );
-
 		$result = $this->collector->collect( $this->args() );
-
 		$this->assertIsString( $result[0]['image_url'] );
 		$this->assertSame( 1200, $result[0]['image_width'] );
 		$this->assertSame( 800, $result[0]['image_height'] );
-
 		wp_delete_file( $file );
 	}
 
@@ -404,9 +376,7 @@ final class CollectorTest extends WP_UnitTestCase {
 	 */
 	public function test_missing_featured_image_returns_null_fields(): void {
 		$this->make_post( 1 );
-
 		$result = $this->collector->collect( $this->args() );
-
 		$this->assertNull( $result[0]['image_url'] );
 		$this->assertNull( $result[0]['image_width'] );
 		$this->assertNull( $result[0]['image_height'] );
@@ -422,9 +392,7 @@ final class CollectorTest extends WP_UnitTestCase {
 			1,
 			array( 'post_content' => '<p>Hello</p><script>alert(1)</script>' )
 		);
-
 		$result = $this->collector->collect( $this->args() );
-
 		$this->assertStringContainsString( '<p>Hello</p>', $result[0]['content'] );
 		$this->assertStringNotContainsString( '<script', $result[0]['content'] );
 	}
@@ -436,10 +404,8 @@ final class CollectorTest extends WP_UnitTestCase {
 	 */
 	public function test_item_fields_source(): void {
 		$post_id = $this->make_post( 1, array( 'post_title' => 'My Title' ) );
-
-		$result = $this->collector->collect( $this->args() );
-		$item   = $result[0];
-
+		$result  = $this->collector->collect( $this->args() );
+		$item    = $result[0];
 		$this->assertSame( 'My Title', $item['title'] );
 		$this->assertSame( get_permalink( $post_id ), $item['link'] );
 		$this->assertMatchesRegularExpression( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $item['published'] );
@@ -451,11 +417,59 @@ final class CollectorTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_author_populated_from_post_author(): void {
-		$user_id = (int) self::factory()->user->create( array( 'display_name' => 'Иван Иванов' ) );
+		$user_id = (int) self::factory()->user->create( array( 'display_name' => 'Ivan Ivanov' ) );
 		$this->make_post( 1, array( 'post_author' => $user_id ) );
-
 		$result = $this->collector->collect( $this->args() );
+		$this->assertSame( 'Ivan Ivanov', $result[0]['author'] );
+	}
 
-		$this->assertSame( 'Иван Иванов', $result[0]['author'] );
+	/**
+	 * A [caption] shortcode is expanded to <figure><figcaption> before sanitize.
+	 *
+	 * @return void
+	 */
+	public function test_caption_shortcode_is_rendered_as_figure(): void {
+		$this->make_post(
+			1,
+			array(
+				'post_content' => '[caption id="attachment_1" align="aligncenter" width="300"]<img src="https://example.com/a.jpg" alt="" width="300" height="200" />Test photo[/caption]',
+			)
+		);
+		$items = $this->collector->collect( $this->args() );
+		$this->assertNotEmpty( $items );
+		$content = $items[0]['content'];
+		$this->assertStringContainsString( '<figure', $content );
+		$this->assertStringContainsString( '<figcaption', $content );
+		$this->assertStringContainsString( 'Test photo', $content );
+		$this->assertStringNotContainsString( '[caption', $content );
+		$this->assertStringNotContainsString( '[/caption]', $content );
+	}
+
+	/**
+	 * Unknown shortcodes are stripped, not rendered.
+	 *
+	 * @return void
+	 */
+	public function test_unknown_shortcode_is_stripped(): void {
+		// Register a dummy shortcode so the core WP strip_shortcodes() function can detect and remove it.
+		// In production, the plugin itself (e.g., TagDiv) does this.
+		add_shortcode( 'td_block_1', '__return_empty_string' );
+
+		$this->make_post(
+			1,
+			array(
+				'post_content' => '<p>Before</p>[td_block_1 title="X"]<p>After</p>',
+			)
+		);
+		$items = $this->collector->collect( $this->args() );
+
+		// Clean up after ourselves (though WP_UnitTestCase tearDown also resets $shortcode_tags).
+		remove_shortcode( 'td_block_1' );
+
+		$this->assertNotEmpty( $items );
+		$content = $items[0]['content'];
+		$this->assertStringNotContainsString( '[td_block_1', $content );
+		$this->assertStringContainsString( 'Before', $content );
+		$this->assertStringContainsString( 'After', $content );
 	}
 }
