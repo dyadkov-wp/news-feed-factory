@@ -9,6 +9,8 @@ declare( strict_types=1 );
 
 namespace NWFF\Settings;
 
+use NWFF\Render\RendererInterface;
+
 /**
  * Registers the plugin settings page (ADR-ARCH-0006).
  *
@@ -192,6 +194,24 @@ final class Page {
 
 		$type = is_string( $field['type'] ?? null ) ? $field['type'] : 'text';
 
+		// Dynamic placeholder + resolved URL hint for per-renderer feed_path.
+		$placeholder = '';
+		$url_hint    = '';
+
+		if ( 'renderers' === ( $path[0] ?? '' ) && 'feed_path' === ( $path[2] ?? '' ) ) {
+			$renderer_slug = (string) $path[1];
+			$renderer      = $this->store->renderers()[ $renderer_slug ] ?? null;
+
+			if ( $renderer instanceof RendererInterface ) {
+				$placeholder = $renderer->get_default_feed_path( $this->store->feed_slug() );
+				$resolved    = $this->store->resolve_feed_path( $renderer_slug );
+
+				if ( '' !== $resolved ) {
+					$url_hint = home_url( '/' . $resolved );
+				}
+			}
+		}
+
 		switch ( $type ) {
 			case 'checkbox':
 				printf(
@@ -212,9 +232,10 @@ final class Page {
 			case 'text':
 			default:
 				printf(
-					'<input type="text" name="%s" value="%s" class="regular-text" />',
+					'<input type="text" name="%s" value="%s" class="regular-text" placeholder="%s" />',
 					esc_attr( $name ),
-					esc_attr( is_scalar( $value ) ? (string) $value : '' )
+					esc_attr( is_scalar( $value ) ? (string) $value : '' ),
+					esc_attr( $placeholder )
 				);
 				break;
 		}
@@ -223,6 +244,14 @@ final class Page {
 			printf(
 				'<p class="description">%s</p>',
 				esc_html( (string) $field['description'] )
+			);
+		}
+
+		if ( '' !== $url_hint ) {
+			printf(
+				'<p class="description">%s <code>%s</code></p>',
+				esc_html__( 'Resolved URL:', 'news-feed-factory' ),
+				esc_html( $url_hint )
 			);
 		}
 	}
