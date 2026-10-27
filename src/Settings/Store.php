@@ -115,6 +115,44 @@ final class Store {
 	}
 
 	/**
+	 * Return the renderer's feed path override, or an empty string.
+	 *
+	 * @param string $renderer_slug Renderer slug.
+	 * @return string Override path with surrounding slashes trimmed.
+	 */
+	public function feed_path_for( string $renderer_slug ): string {
+		$all  = $this->get();
+		$path = $all['renderers'][ $renderer_slug ]['feed_path'] ?? '';
+
+		if ( ! is_string( $path ) ) {
+			return '';
+		}
+
+		return trim( $path, '/' );
+	}
+
+	/**
+	 * Resolve the effective feed path: override or renderer default.
+	 *
+	 * @param string $renderer_slug Renderer slug.
+	 * @return string Relative feed path.
+	 */
+	public function resolve_feed_path( string $renderer_slug ): string {
+		$override = $this->feed_path_for( $renderer_slug );
+
+		if ( '' !== $override ) {
+			return $override;
+		}
+
+		$renderers = $this->renderers();
+		if ( ! isset( $renderers[ $renderer_slug ] ) ) {
+			return '';
+		}
+
+		return $renderers[ $renderer_slug ]->get_default_feed_path( $this->feed_slug() );
+	}
+
+	/**
 	 * Sanitize the settings input before it is saved.
 	 *
 	 * Whitelist driven: only keys present in the core schema and in
@@ -169,6 +207,11 @@ final class Store {
 
 				$type = is_string( $field['type'] ?? null ) ? $field['type'] : 'text';
 
+				if ( 'feed_path' === $key ) {
+					$clean[ $key ] = $this->sanitize_feed_path( (string) ( $values[ $key ] ?? '' ) );
+					continue;
+				}
+
 				if ( 'checkbox' === $type ) {
 					$clean[ $key ] = ! empty( $values[ $key ] );
 					continue;
@@ -216,5 +259,25 @@ final class Store {
 		}
 
 		return sanitize_text_field( (string) $value );
+	}
+
+	/**
+	 * Sanitize a feed path override.
+	 *
+	 * Allowed: ASCII letters, digits, "_", "-", "/". Surrounding
+	 * slashes are trimmed. Anything else becomes an empty string
+	 * (falls back to the renderer default).
+	 *
+	 * @param string $path Raw path.
+	 * @return string Sanitized path or empty string.
+	 */
+	private function sanitize_feed_path( string $path ): string {
+		$path = trim( $path, '/' );
+
+		if ( '' === $path ) {
+			return '';
+		}
+
+		return 1 === preg_match( '#^[a-z0-9_\-/]+$#i', $path ) ? $path : '';
 	}
 }
