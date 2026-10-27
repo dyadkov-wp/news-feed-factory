@@ -157,26 +157,45 @@ final class Plugin {
 	}
 
 	/**
-	 * Flush rewrite rules when the feed slug changes.
+	 * Flush rewrite rules when the feed slug or any feed path changes.
 	 *
-	 * Hooked to update_option_nwff_settings. The feed slug is part of
-	 * the rewrite regex, so a change requires a flush. Any other
-	 * change is a no-op — the flush is expensive.
+	 * Hooked to update_option_nwff_settings. Both feed_slug and every
+	 * renderer's feed_path are part of the rewrite regex, so a change
+	 * requires a flush. Any other change is a no-op — the flush is
+	 * expensive.
 	 *
 	 * @param mixed $old_value Previous option value.
 	 * @param mixed $value     New option value.
 	 * @return void
 	 */
 	public static function on_settings_updated( $old_value, $value ): void {
-		$old_slug = is_array( $old_value ) ? ( $old_value['core']['feed_slug'] ?? null ) : null;
-		$new_slug = is_array( $value ) ? ( $value['core']['feed_slug'] ?? null ) : null;
+		$old_value = is_array( $old_value ) ? $old_value : array();
+		$value     = is_array( $value ) ? $value : array();
 
-		if ( $old_slug === $new_slug ) {
+		$old_slug = $old_value['core']['feed_slug'] ?? null;
+		$new_slug = $value['core']['feed_slug'] ?? null;
+
+		if ( $old_slug !== $new_slug ) {
+			flush_rewrite_rules();
 			return;
 		}
 
-		flush_rewrite_rules();
+		$old_renderers = is_array( $old_value['renderers'] ?? null ) ? $old_value['renderers'] : array();
+		$new_renderers = is_array( $value['renderers'] ?? null ) ? $value['renderers'] : array();
+
+		$slugs = array_unique( array_merge( array_keys( $old_renderers ), array_keys( $new_renderers ) ) );
+
+		foreach ( $slugs as $slug ) {
+			$old_path = is_array( $old_renderers[ $slug ] ?? null ) ? ( $old_renderers[ $slug ]['feed_path'] ?? '' ) : '';
+			$new_path = is_array( $new_renderers[ $slug ] ?? null ) ? ( $new_renderers[ $slug ]['feed_path'] ?? '' ) : '';
+
+			if ( $old_path !== $new_path ) {
+				flush_rewrite_rules();
+				return;
+			}
+		}
 	}
+
 	/**
 	 * Return the renderer map keyed by slug.
 	 *
@@ -194,7 +213,9 @@ final class Plugin {
 	 * @return void
 	 */
 	public static function register_rewrite_rules(): void {
-		$slug = preg_quote( self::store()->feed_slug(), '/' );
+		$store = self::store();
+		// phpcs:ignore WordPress.PHP.PregQuoteDelimiter.Missing -- Rewrite rules store a bare regex; WP applies its own delimiter.
+		$slug = preg_quote( $store->feed_slug() );
 
 		add_rewrite_tag( '%' . self::QUERY_VAR . '%', '([^/]+)' );
 		add_rewrite_rule(
@@ -202,6 +223,21 @@ final class Plugin {
 			'index.php?' . self::QUERY_VAR . '=$matches[1]',
 			'top'
 		);
+
+		foreach ( $store->renderers() as $renderer_slug => $renderer ) {
+			$override = $store->feed_path_for( (string) $renderer_slug );
+
+			if ( '' === $override ) {
+				continue;
+			}
+
+			add_rewrite_rule(
+				// phpcs:ignore WordPress.PHP.PregQuoteDelimiter.Missing -- Rewrite rules store a bare regex; WP applies its own delimiter.
+				'^' . preg_quote( $override ) . '/?$',
+				'index.php?' . self::QUERY_VAR . '=' . $renderer_slug,
+				'top'
+			);
+		}
 	}
 
 	/**
