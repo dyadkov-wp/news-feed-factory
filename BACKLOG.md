@@ -669,3 +669,49 @@ Inline `<video>` в `news_only` (не поддерживается Дзеном,
 < 800×400 — Дзен отклонит. Извлечение video из `post_content` может
 зацепить embed'ы плагинов (TagDiv `[td_block_video_youtube]`) — фильтровать
 по allowlist/мета. Если постов с видео нет — TD не делать (YAGNI).
+
+### TD-33: `composer test` — unit и integration в одном процессе ломают `$wpdb`
+
+**Проблема.** `composer test` = `phpunit --testdox` — bootstrap из
+`phpunit.xml.dist` (`bootstrap-integration.php`), оба suite'а (`unit` +
+`integration`) в одном PHP-процессе. Юнит-тесты, рассчитанные на
+`bootstrap-unit.php` (без WordPress), выполняются в WP-контексте.
+Симптом: `Attempt to assign property "suppress_errors" on null` в
+`WP_UnitTestCase::set_up_before_class()` (`abstract-testcase.php:71`) —
+`$wpdb` не инициализирован. 11 Errors + 3 Failures в `composer test`,
+при этом `composer test:unit` и `composer test:integration` по
+отдельности — зелёные. Проявилось после правок в `DzenRendererTest` /
+`FigureCleanupTest`: изменение состава/порядка unit-тестов вытащило
+скрытый баг. До правок — работало.
+
+**Сделано (обход).** `composer.json`:
+`"test": ["@test:unit", "@test:integration"]` — массив, последовательные
+процессы, каждый со своим bootstrap. `composer test`, `composer test:unit`,
+`composer test:integration`, `composer check` — зелёные. Правило 3
+(`composer check` + `composer test:integration`) не затронуто.
+
+**Что делать (постоянное решение).** Решить: (а) оставить массив в
+`composer.json` + задокументировать в `doc/dev-environment.md`;
+(б) разделить `phpunit.xml.dist` на `phpunit-unit.xml` +
+`phpunit-integration.xml`, запускать по конфигу. Проверить, что при
+добавлении нового suite'а (например, `acceptance`) массив не разрастётся
+и не потеряет bootstrap. `@runInSeparateProcess` на suite — не
+рекомендуется (медленно, съедает память).
+
+**Объём.** `composer.json` (сделано); опционально `phpunit.xml*`;
+`doc/dev-environment.md` — раздел «Запуск тестов»: `composer test` =
+unit → integration (последовательно, разные процессы), не `phpunit`
+в одном процессе.
+
+**Что не входит.** `@runInSeparateProcess` для каждого теста. Правка
+`bootstrap-unit.php` / `bootstrap-integration.php`. ADR-PROC-0001
+(правило 3 не меняется).
+
+**Когда.** Низкий приоритет. Триггер — третий suite, или повторное
+`$wpdb = null` в `composer test` после добавления новых unit-тестов.
+
+**Риски.** Массив в `composer.json` — временное решение: если кто-то
+добавит третий suite и забудет вписать его в массив, `composer test`
+его молча пропустит. Митигация — явное перечисление в
+`doc/dev-environment.md`; `composer check` консистентность suite'ов
+не проверяет.
