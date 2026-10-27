@@ -111,4 +111,14 @@ final class FakeRenderer implements RendererInterface {
 	public function render( array $items, array $args ): string {
 		return '';
 	}
+
+	/**
+	 * Default feed path derived from the core feed slug.
+	 *
+	 * @param string $feed_slug Core feed slug.
+	 * @return string
+	 */
+	public function get_default_feed_path( string $feed_slug ): string {
+		return $feed_slug . '/' . $this->slug . '.xml';
+	}
 }

@@ -332,4 +332,106 @@ final class StoreTest extends WP_UnitTestCase {
 		$this->assertSame( 12, $result['core']['depth_hours'] );
 		$this->assertSame( 1, $result['core']['cache_ttl'] );
 	}
+
+	/**
+	 * Returns an empty override when none is saved.
+	 *
+	 * @return void
+	 */
+	public function test_feed_path_for_returns_empty_when_not_set(): void {
+		$store = new Store( array( 'dzen' => new FakeRenderer( 'dzen' ) ) );
+		$this->assertSame( '', $store->feed_path_for( 'dzen' ) );
+	}
+
+	/**
+	 * Returns the saved override.
+	 *
+	 * @return void
+	 */
+	public function test_feed_path_for_returns_override(): void {
+		update_option(
+			'nwff_settings',
+			array( 'renderers' => array( 'dzen' => array( 'feed_path' => 'feed/zen' ) ) )
+		);
+
+		$store = new Store( array( 'dzen' => new FakeRenderer( 'dzen' ) ) );
+
+		$this->assertSame( 'feed/zen', $store->feed_path_for( 'dzen' ) );
+	}
+
+	/**
+	 * Returns the override when set.
+	 *
+	 * @return void
+	 */
+	public function test_resolve_feed_path_uses_override(): void {
+		update_option(
+			'nwff_settings',
+			array( 'renderers' => array( 'dzen' => array( 'feed_path' => 'feed/zen' ) ) )
+		);
+
+		$store = new Store( array( 'dzen' => new FakeRenderer( 'dzen' ) ) );
+
+		$this->assertSame( 'feed/zen', $store->resolve_feed_path( 'dzen' ) );
+	}
+
+	/**
+	 * Falls back to the renderer default when the override is empty.
+	 *
+	 * @return void
+	 */
+	public function test_resolve_feed_path_uses_default_when_override_empty(): void {
+		$store = new Store( array( 'dzen' => new FakeRenderer( 'dzen' ) ) );
+
+		$this->assertSame( 'feed/dzen.xml', $store->resolve_feed_path( 'dzen' ) );
+	}
+
+	/**
+	 * Invalid feed_path values sanitize to an empty string.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_rejects_invalid_feed_path(): void {
+		$schema = array(
+			'feed_path' => array(
+				'type'    => 'text',
+				'default' => '',
+			),
+		);
+		$store  = new Store( array( 'dzen' => new FakeRenderer( 'dzen', $schema ) ) );
+
+		foreach ( array( '../etc', 'feed?x=1', 'feed zen', 'кириллица', 'a#b', 'feed%20zen' ) as $bad ) {
+			$result = $store->sanitize(
+				array( 'renderers' => array( 'dzen' => array( 'feed_path' => $bad ) ) )
+			);
+			$this->assertSame( '', $result['renderers']['dzen']['feed_path'], "Should reject: {$bad}" );
+		}
+	}
+
+	/**
+	 * Valid feed_path is trimmed of slashes and kept verbatim.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_accepts_valid_feed_path(): void {
+		$schema = array(
+			'feed_path' => array(
+				'type'    => 'text',
+				'default' => '',
+			),
+		);
+		$store  = new Store( array( 'dzen' => new FakeRenderer( 'dzen', $schema ) ) );
+
+		foreach ( array( 'feed/zen', 'feeds/dzen/v2', 'dzen' ) as $good ) {
+			$result = $store->sanitize(
+				array( 'renderers' => array( 'dzen' => array( 'feed_path' => $good ) ) )
+			);
+			$this->assertSame( $good, $result['renderers']['dzen']['feed_path'] );
+		}
+
+		$result = $store->sanitize(
+			array( 'renderers' => array( 'dzen' => array( 'feed_path' => '/feed/zen/' ) ) )
+		);
+		$this->assertSame( 'feed/zen', $result['renderers']['dzen']['feed_path'] );
+	}
 }
