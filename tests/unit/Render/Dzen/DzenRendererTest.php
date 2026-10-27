@@ -804,4 +804,14 @@ final class DzenRendererTest extends TestCase {
 			$this->assertArrayNotHasKey( 'id', $attrs, "id must not be allowed on <{$tag}>." );
 		}
 	}
+
+	/**
+	 * Default feed path is derived from the core feed slug.
+	 *
+	 * @return void
+	 */
+	public function test_get_default_feed_path_uses_feed_slug(): void {
+		$this->assertSame( 'feed/dzen.xml', $this->renderer->get_default_feed_path( 'feed' ) );
+		$this->assertSame( 'news/dzen.xml', $this->renderer->get_default_feed_path( 'news' ) );
+	}
 }

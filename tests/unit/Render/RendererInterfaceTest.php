@@ -80,19 +80,14 @@ final class RendererInterfaceTest extends TestCase {
 	}
 
 	/**
-	 * The interface exposes exactly four methods.
-	 *
-	 * @return void
-	 */
-	/**
-	 * The interface exposes exactly seven methods.
+	 * The interface exposes exactly eight methods.
 	 *
 	 * @return void
 	 */
 	public function test_interface_method_count(): void {
 		$reflection = new ReflectionClass( RendererInterface::class );
 
-		$this->assertCount( 7, $reflection->getMethods() );
+		$this->assertCount( 8, $reflection->getMethods() );
 	}
 
 	/**
@@ -133,5 +128,19 @@ final class RendererInterfaceTest extends TestCase {
 		$this->assertSame( 1, $method->getNumberOfParameters() );
 		$this->assertSame( 'array', (string) $params[0]->getType() );
 		$this->assertSame( 'array', (string) $method->getReturnType() );
+	}
+
+	/**
+	 * Default feed path takes a string and returns a string.
+	 *
+	 * @return void
+	 */
+	public function test_get_default_feed_path_signature(): void {
+		$method = new ReflectionMethod( RendererInterface::class, 'get_default_feed_path' );
+		$params = $method->getParameters();
+
+		$this->assertSame( 1, $method->getNumberOfParameters() );
+		$this->assertSame( 'string', (string) $params[0]->getType() );
+		$this->assertSame( 'string', (string) $method->getReturnType() );
 	}
 }

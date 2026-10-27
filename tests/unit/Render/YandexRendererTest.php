@@ -601,4 +601,14 @@ final class YandexRendererTest extends TestCase {
 
 		$this->assertSame( array( 'category' => array( 12, 15 ) ), $args['taxonomy_include'] );
 	}
+
+	/**
+	 * Default feed path is derived from the core feed slug.
+	 *
+	 * @return void
+	 */
+	public function test_get_default_feed_path_uses_feed_slug(): void {
+		$this->assertSame( 'feed/yandex.xml', $this->renderer->get_default_feed_path( 'feed' ) );
+		$this->assertSame( 'news/yandex.xml', $this->renderer->get_default_feed_path( 'news' ) );
+	}
 }
