@@ -67,6 +67,16 @@ final class YandexRenderer implements RendererInterface {
 	}
 
 	/**
+	 * Default feed path derived from the core feed slug.
+	 *
+	 * @param string $feed_slug Core feed slug.
+	 * @return string
+	 */
+	public function get_default_feed_path( string $feed_slug ): string {
+		return $feed_slug . '/' . self::SLUG . '.xml';
+	}
+
+	/**
 	 * HTTP Content-Type.
 	 *
 	 * @return string
@@ -103,6 +113,12 @@ final class YandexRenderer implements RendererInterface {
 				'type'    => 'checkbox',
 				'label'   => 'Enable Yandex feed',
 				'default' => false,
+			),
+			'feed_path'          => array(
+				'type'        => 'text',
+				'label'       => 'Feed path',
+				'default'     => '',
+				'description' => 'Override. Empty = feed/yandex.xml. Example: feed/zen.',
 			),
 			'tag_interview'      => array(
 				'type'    => 'number',

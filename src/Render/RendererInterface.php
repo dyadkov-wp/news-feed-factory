@@ -27,6 +27,16 @@ interface RendererInterface {
 	public function get_slug(): string;
 
 	/**
+	 * Default feed path for the given core feed slug.
+	 *
+	 * Pure function: no WordPress calls.
+	 *
+	 * @param string $feed_slug Core feed slug (e.g. "feed").
+	 * @return string Relative path (e.g. "feed/dzen.xml").
+	 */
+	public function get_default_feed_path( string $feed_slug ): string;
+
+	/**
 	 * HTTP Content-Type for the feed response.
 	 *
 	 * @return string

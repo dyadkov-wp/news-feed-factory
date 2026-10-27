@@ -103,6 +103,16 @@ final class DzenRenderer implements RendererInterface {
 	}
 
 	/**
+	 * Default feed path derived from the core feed slug.
+	 *
+	 * @param string $feed_slug Core feed slug.
+	 * @return string
+	 */
+	public function get_default_feed_path( string $feed_slug ): string {
+		return $feed_slug . '/' . self::SLUG . '.xml';
+	}
+
+	/**
 	 * HTTP Content-Type.
 	 *
 	 * @return string
@@ -164,6 +174,12 @@ final class DzenRenderer implements RendererInterface {
 				'type'    => 'checkbox',
 				'label'   => 'Enable Dzen feed',
 				'default' => false,
+			),
+			'feed_path'          => array(
+				'type'        => 'text',
+				'label'       => 'Feed path',
+				'default'     => '',
+				'description' => 'Override. Empty = feed/dzen.xml. Example: feed/zen.',
 			),
 			'content_type'       => array(
 				'type'        => 'text',
