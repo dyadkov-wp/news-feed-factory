@@ -342,4 +342,80 @@ final class PluginTest extends WP_UnitTestCase {
 			has_action( 'save_post_post', array( \NWFF\Admin\PostFlags::class, 'save' ) )
 		);
 	}
+
+	/**
+	 * Override feed_path registers its own rewrite rule.
+	 *
+	 * @return void
+	 */
+	public function test_rewrite_registers_override_path(): void {
+		global $wp_rewrite;
+
+		// Pretty permalinks required for rewrite rules to be generated.
+		// @phpstan-ignore-next-line -- set_permalink_structure() lives in WP_UnitTestCase_Base, outside the WP stubs.
+		$this->set_permalink_structure( '/%postname%/' );
+
+		update_option(
+			'nwff_settings',
+			array(
+				'core'      => array( 'feed_slug' => 'feed' ),
+				'renderers' => array(
+					'dzen' => array( 'feed_path' => 'feed/zen' ),
+				),
+			)
+		);
+
+		$wp_rewrite->init();
+		Plugin::register_rewrite_rules();
+
+		$wp_rewrite->rules = $wp_rewrite->rewrite_rules();
+		update_option( 'rewrite_rules', $wp_rewrite->rules );
+
+		// flush_rewrite_rules() defers when wp_loaded has not fired (unit tests).
+		// Regenerate synchronously so the test can assert on the stored rules.
+		$wp_rewrite->rules = $wp_rewrite->rewrite_rules();
+		update_option( 'rewrite_rules', $wp_rewrite->rules );
+
+		$rules = get_option( 'rewrite_rules' );
+
+		$this->assertIsArray( $rules );
+		$this->assertArrayHasKey( '^feed/zen/?$', $rules );
+		$this->assertSame( 'index.php?nwff_feed_slug=dzen', $rules['^feed/zen/?$'] );
+	}
+
+	/**
+	 * Default path keeps working when override is set.
+	 *
+	 * @return void
+	 */
+	public function test_rewrite_still_serves_default_path(): void {
+		global $wp_rewrite;
+
+		// Pretty permalinks required for rewrite rules to be generated.
+		// @phpstan-ignore-next-line -- set_permalink_structure() lives in WP_UnitTestCase_Base, outside the WP stubs.
+		$this->set_permalink_structure( '/%postname%/' );
+
+		update_option(
+			'nwff_settings',
+			array(
+				'core'      => array( 'feed_slug' => 'feed' ),
+				'renderers' => array(
+					'dzen' => array( 'feed_path' => 'feed/zen' ),
+				),
+			)
+		);
+
+		$wp_rewrite->init();
+		Plugin::register_rewrite_rules();
+
+		// flush_rewrite_rules() defers when wp_loaded has not fired (unit tests).
+		// Regenerate synchronously so the test can assert on the stored rules.
+		$wp_rewrite->rules = $wp_rewrite->rewrite_rules();
+		update_option( 'rewrite_rules', $wp_rewrite->rules );
+
+		$rules = get_option( 'rewrite_rules' );
+
+		$this->assertIsArray( $rules );
+		$this->assertArrayHasKey( '^feed/([^/]+)\.xml/?$', $rules );
+	}
 }
