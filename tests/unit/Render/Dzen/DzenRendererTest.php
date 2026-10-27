@@ -136,7 +136,6 @@ final class DzenRendererTest extends TestCase {
 		$this->assertSame( 500_000, $config['max_content_length'] );
 		$this->assertSame( 'none', $config['truncate_mode'] );
 		$this->assertSame( 0, $config['truncate_limit'] );
-		$this->assertNull( $config['allowed_html'] );
 		$this->assertSame( 480, $config['image_min_width'] );
 		$this->assertSame( 320, $config['image_min_height'] );
 		$this->assertTrue( $config['include_terms'] );
@@ -748,5 +747,61 @@ final class DzenRendererTest extends TestCase {
 		$this->assertStringContainsString( 'missing link', $warnings[0] );
 		$this->assertStringContainsString( 'empty content', $warnings[1] );
 		$this->assertStringContainsString( 'kept 0 of 3 items', $warnings[2] );
+	}
+
+	/**
+	 * Normalization config ships the exact Dzen tag whitelist.
+	 *
+	 * @return void
+	 */
+	public function test_get_normalization_config_allowed_html_is_dzen_whitelist(): void {
+		$config  = $this->renderer->get_normalization_config();
+		$allowed = $config['allowed_html'];
+
+		$this->assertIsArray( $allowed );
+
+		$this->assertSame(
+			array(
+				'p',
+				'a',
+				'b',
+				'i',
+				'u',
+				's',
+				'em',
+				'strong',
+				'br',
+				'h2',
+				'h3',
+				'h4',
+				'blockquote',
+				'ul',
+				'ol',
+				'li',
+				'figure',
+				'figcaption',
+				'img',
+			),
+			array_keys( $allowed ),
+			'allowed_html must contain exactly the Dzen tag whitelist in order.'
+		);
+
+		$this->assertSame( array( 'href' => true ), $allowed['a'] );
+		$this->assertSame( array(), $allowed['figure'] );
+		$this->assertSame( array(), $allowed['figcaption'] );
+		$this->assertSame(
+			array(
+				'src'    => true,
+				'alt'    => true,
+				'width'  => true,
+				'height' => true,
+			),
+			$allowed['img']
+		);
+
+		foreach ( $allowed as $tag => $attrs ) {
+			$this->assertArrayNotHasKey( 'class', $attrs, "class must not be allowed on <{$tag}>." );
+			$this->assertArrayNotHasKey( 'id', $attrs, "id must not be allowed on <{$tag}>." );
+		}
 	}
 }
